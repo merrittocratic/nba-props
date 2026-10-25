@@ -1,0 +1,144 @@
+{
+ "id": "8e825a8f4a6264c7983a1fad6d45ad4a",
+ "sport_key": "basketball_nba",
+ "sport_title": "NBA",
+ "commence_time": "2025-01-16T00:10:00Z",
+ "home_team": "Philadelphia 76ers",
+ "away_team": "New York Knicks",
+ "bookmakers": [
+  {
+   "key": "draftkings",
+   "title": "DraftKings",
+   "last_update": "2025-01-15T23:05:27Z",
+   "markets": [
+    {
+     "key": "player_assists",
+     "last_update": "2025-01-15T23:05:36Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "description": "Jalen Brunson",
+       "price": -135,
+       "point": 7.5
+      },
+      {
+       "name": "Under",
+       "description": "Jalen Brunson",
+       "price": 105,
+       "point": 7.5
+      },
+      {
+       "name": "Under",
+       "description": "Tyrese Maxey",
+       "price": -125,
+       "point": 6.5
+      },
+      {
+       "name": "Over",
+       "description": "Tyrese Maxey",
+       "price": -105,
+       "point": 6.5
+      }
+     ]
+    },
+    {
+     "key": "player_points",
+     "last_update": "2025-01-15T23:05:36Z",
+     "outcomes": [
+      {
+       "name": "Under",
+       "description": "Jalen Brunson",
+       "price": -120,
+       "point": 28.5
+      },
+      {
+       "name": "Over",
+       "description": "Jalen Brunson",
+       "price": -110,
+       "point": 28.5
+      },
+      {
+       "name": "Over",
+       "description": "Tyrese Maxey",
+       "price": -120,
+       "point": 26.5
+      },
+      {
+       "name": "Under",
+       "description": "Tyrese Maxey",
+       "price": -110,
+       "point": 26.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "fanduel",
+   "title": "FanDuel",
+   "last_update": "2025-01-15T23:05:28Z",
+   "markets": [
+    {
+     "key": "player_assists",
+     "last_update": "2025-01-15T23:05:03Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "description": "Paul George",
+       "price": -140,
+       "point": 4.5
+      },
+      {
+       "name": "Under",
+       "description": "Paul George",
+       "price": 112,
+       "point": 4.5
+      },
+      {
+       "name": "Over",
+       "description": "Tyrese Maxey",
+       "price": -114,
+       "point": 6.5
+      },
+      {
+       "name": "Under",
+       "description": "Tyrese Maxey",
+       "price": -106,
+       "point": 6.5
+      }
+     ]
+    },
+    {
+     "key": "player_points",
+     "last_update": "2025-01-15T23:05:03Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "description": "Josh Hart",
+       "price": -105,
+       "point": 14.5
+      },
+      {
+       "name": "Under",
+       "description": "Josh Hart",
+       "price": -115,
+       "point": 14.5
+      },
+      {
+       "name": "Over",
+       "description": "Miles McBride",
+       "price": 102,
+       "point": 9.5
+      },
+      {
+       "name": "Under",
+       "description": "Miles McBride",
+       "price": -124,
+       "point": 9.5
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

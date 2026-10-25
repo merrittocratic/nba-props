@@ -1,0 +1,34 @@
+name: Daily capture
+
+# Manual only for now. Enable the schedule after the dry run and one real run
+# have been checked: uncomment the two schedule lines below.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (free listing calls only, writes nothing)"
+        type: boolean
+        default: true
+  # schedule:
+  #   - cron: "0 22 * * *"  # 22:00 UTC = 6 pm ET (5 pm during standard time)
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - name: Capture
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: uv run python -m nbaprops.capture ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
+      # data/ is gitignored, so a runner's capture only survives as an artifact.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capture-${{ github.run_id }}
+          path: data/
+          if-no-files-found: ignore
+          retention-days: 90

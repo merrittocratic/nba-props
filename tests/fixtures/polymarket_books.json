@@ -1,0 +1,94 @@
+[
+ {
+  "market": "0x9c4bb09bbf78d7ffa2a13c678cf11641f58f15ba6605c107578cc76aaefdf8b4",
+  "asset_id": "49391581255643976976371835411968124093430904667873675791560230526371216871331",
+  "timestamp": "1792855622276",
+  "hash": "6abfbf7da6de011ef35fc98c233ebfb7be85af2f",
+  "bids": [
+   {
+    "price": "0.01",
+    "size": "37.99"
+   },
+   {
+    "price": "0.02",
+    "size": "50"
+   },
+   {
+    "price": "0.03",
+    "size": "30"
+   },
+   {
+    "price": "0.04",
+    "size": "15.74"
+   }
+  ],
+  "asks": [
+   {
+    "price": "0.99",
+    "size": "18.8"
+   },
+   {
+    "price": "0.98",
+    "size": "50"
+   },
+   {
+    "price": "0.97",
+    "size": "27.4"
+   },
+   {
+    "price": "0.77",
+    "size": "217"
+   }
+  ],
+  "min_order_size": "5",
+  "tick_size": "0.01",
+  "neg_risk": false,
+  "last_trade_price": ""
+ },
+ {
+  "market": "0x9c4bb09bbf78d7ffa2a13c678cf11641f58f15ba6605c107578cc76aaefdf8b4",
+  "asset_id": "35436536416968209586708988768068763848991751075925687374531437022593882504334",
+  "timestamp": "1792855622276",
+  "hash": "3455db6a86445742eece5115f13c9c5ad10e2e46",
+  "bids": [
+   {
+    "price": "0.01",
+    "size": "18.8"
+   },
+   {
+    "price": "0.02",
+    "size": "50"
+   },
+   {
+    "price": "0.03",
+    "size": "27.4"
+   },
+   {
+    "price": "0.23",
+    "size": "217"
+   }
+  ],
+  "asks": [
+   {
+    "price": "0.99",
+    "size": "37.99"
+   },
+   {
+    "price": "0.98",
+    "size": "50"
+   },
+   {
+    "price": "0.97",
+    "size": "30"
+   },
+   {
+    "price": "0.96",
+    "size": "15.74"
+   }
+  ],
+  "min_order_size": "5",
+  "tick_size": "0.01",
+  "neg_risk": false,
+  "last_trade_price": ""
+ }
+]

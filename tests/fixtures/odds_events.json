@@ -1,0 +1,18 @@
+[
+ {
+  "id": "8e825a8f4a6264c7983a1fad6d45ad4a",
+  "sport_key": "basketball_nba",
+  "sport_title": "NBA",
+  "commence_time": "2025-01-16T00:10:00Z",
+  "home_team": "Philadelphia 76ers",
+  "away_team": "New York Knicks"
+ },
+ {
+  "id": "99761689307be374917f5ca3fc43eb3d",
+  "sport_key": "basketball_nba",
+  "sport_title": "NBA",
+  "commence_time": "2025-01-16T00:40:00Z",
+  "home_team": "Toronto Raptors",
+  "away_team": "Boston Celtics"
+ }
+]

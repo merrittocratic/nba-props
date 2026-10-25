@@ -1,0 +1,30 @@
+[project]
+name = "nba-props"
+version = "0.1.0"
+description = "Daily raw snapshots of NBA player prop lines and prediction-market prices"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.24,<0.10"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "nbaprops"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

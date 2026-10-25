@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 BASE = "https://api.the-odds-api.com/v4/historical/sports/basketball_nba"
@@ -46,7 +46,9 @@ def get_key():
     try:
         out = subprocess.run(
             ["op", "item", "get", "Odds API Key", "--fields", "credential", "--reveal"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.strip()
@@ -64,7 +66,7 @@ def iso(dt):
 
 
 def parse_iso(s):
-    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
 def call(key, name, path, params, worst_case):
@@ -91,7 +93,7 @@ def call(key, name, path, params, worst_case):
             msg = str(e.reason).replace(key, "***")
             print(f"[{name}] network error (attempt {attempt}): {msg}")
             if attempt == 2:
-                raise FatalAPIError(f"[{name}] network error after retry")
+                raise FatalAPIError(f"[{name}] network error after retry") from None
             time.sleep(2)
             continue
 
@@ -121,7 +123,9 @@ def pick_game(key, label, date_str):
     snap = parse_iso(date_str)
     # US evening tip-offs on that calendar date land roughly 15:00Z same day to 08:00Z next day
     data = call(
-        key, f"{label}_events", "/events",
+        key,
+        f"{label}_events",
+        "/events",
         {
             "date": date_str,
             "commenceTimeFrom": iso(snap.replace(hour=15)),
@@ -130,7 +134,10 @@ def pick_game(key, label, date_str):
         worst_case=1,
     )
     events = sorted(data.get("data", []), key=lambda e: e["commence_time"])
-    print(f"    snapshot returned {data.get('timestamp')} (requested {date_str}); {len(events)} events")
+    print(
+        f"    snapshot returned {data.get('timestamp')} (requested {date_str}); "
+        f"{len(events)} events"
+    )
     for e in events:
         print(f"      {e['commence_time']}  {e['away_team']} @ {e['home_team']}  id={e['id']}")
     if not events:
@@ -146,10 +153,14 @@ def summarize(label, region, requested, data):
     if not books:
         print("No bookmakers returned.")
         return
-    print(f"Event: {ev.get('away_team')} @ {ev.get('home_team')}  commence {ev.get('commence_time')}")
+    print(
+        f"Event: {ev.get('away_team')} @ {ev.get('home_team')}  commence {ev.get('commence_time')}"
+    )
     print("Bookmakers present: " + ", ".join(b["key"] for b in books))
 
-    abbrev = {m: m.replace("player_", "").replace("points_rebounds_assists", "pra") for m in MARKETS}
+    abbrev = {
+        m: m.replace("player_", "").replace("points_rebounds_assists", "pra") for m in MARKETS
+    }
     header = f"{'bookmaker':<18}" + "".join(f"{abbrev[m]:>10}" for m in MARKETS)
     print("\nDistinct players with a line:")
     print(header)
@@ -163,17 +174,25 @@ def summarize(label, region, requested, data):
                 sides[o.get("description")].add(o.get("name"))
             counts[m["key"]] = len(sides)
             both = sum(1 for s in sides.values() if {"Over", "Under"} <= s)
-            ou_notes.append(f"{b['key']}/{abbrev.get(m['key'], m['key'])}: {both}/{len(sides)} players have both Over and Under")
+            ou_notes.append(
+                f"{b['key']}/{abbrev.get(m['key'], m['key'])}: "
+                f"{both}/{len(sides)} players have both Over and Under"
+            )
         print(f"{b['key']:<18}" + "".join(f"{counts.get(m, 0):>10}" for m in MARKETS))
 
-        mk = next((m for m in b.get("markets", []) if m["key"] == "player_points"), None) \
+        mk = (
+            next((m for m in b.get("markets", []) if m["key"] == "player_points"), None)
             or (b.get("markets") or [None])[0]
+        )
         if mk and mk.get("outcomes"):
             player = mk["outcomes"][0].get("description")
             outs = [o for o in mk["outcomes"] if o.get("description") == player]
             parts = [f"{o.get('name')} {o.get('point')} @ {o.get('price')}" for o in outs]
-            samples.append(f"{b['key']}: {mk['key']} {player}: " + " | ".join(parts)
-                           + f"  (last_update {mk.get('last_update')})")
+            samples.append(
+                f"{b['key']}: {mk['key']} {player}: "
+                + " | ".join(parts)
+                + f"  (last_update {mk.get('last_update')})"
+            )
     print("\nOver/Under presence:")
     for n in ou_notes:
         print("  " + n)
@@ -192,7 +211,9 @@ def main():
             snap = iso(parse_iso(ev["commence_time"]) - timedelta(hours=1))
             for region in ["us"] + EXTRA_REGIONS:
                 data = call(
-                    key, f"{label}_odds_{region}", f"/events/{ev['id']}/odds",
+                    key,
+                    f"{label}_odds_{region}",
+                    f"/events/{ev['id']}/odds",
                     {
                         "date": snap,
                         "regions": region,
