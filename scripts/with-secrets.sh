@@ -11,7 +11,7 @@
 # Master secret management lives in ~/autopilot/scripts/keychain-sync.sh.
 # This wrapper only READS - it does not add/update secrets.
 #
-# Usage (from Earnest's scheduler, launchd, cron, or interactively on the Mini):
+# Usage (from launchd - see deploy/launchd/ - or interactively on the Mini):
 #   cd /Users/<user>/nba-props && scripts/with-secrets.sh \
 #       uv run python -m nbaprops.capture
 #

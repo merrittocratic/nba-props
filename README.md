@@ -60,16 +60,25 @@ scripts/with-secrets.sh uv run python -m nbaprops.capture
 
 ## Scheduling
 
-**Mac Mini (cron or Earnest's scheduler):** run once a day before the evening slate.
-Example, 6 pm local time, after a one-time `mkdir -p data/logs`:
+**Mac Mini (launchd):** run once a day before the evening slate, 6 pm local time.
+The LaunchAgent is `deploy/launchd/com.merritt.nba-props.capture.plist`. launchd does
+not expand `~` or `$HOME`, so install it from the repo root with the paths filled in:
 
-```cron
-PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/<user>/.local/bin
-0 18 * * * cd /Users/<user>/nba-props && scripts/with-secrets.sh uv run python -m nbaprops.capture >> data/logs/capture.log 2>&1
+```sh
+mkdir -p data/logs   # launchd won't create the log dir
+sed -e "s|__REPO__|$PWD|g" -e "s|__HOME__|$HOME|g" \
+    deploy/launchd/com.merritt.nba-props.capture.plist \
+    > ~/Library/LaunchAgents/com.merritt.nba-props.capture.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.merritt.nba-props.capture.plist
 ```
 
-cron has a minimal PATH, hence the first line, so `uv` and `security` resolve. Prefer
-the Mac Mini over the laptop: Keychain needs no unlocked 1Password session, and
+Check it with `launchctl print gui/$(id -u)/com.merritt.nba-props.capture`, run it now
+with `launchctl kickstart gui/$(id -u)/com.merritt.nba-props.capture`, and unload it with
+`launchctl bootout gui/$(id -u)/com.merritt.nba-props.capture`. Output goes to
+`data/logs/capture.log`. A run missed while the Mini sleeps fires on wake. Don't use
+cron on the Mini: it needs Full Disk Access and can't reliably reach the Keychain.
+
+Prefer the Mac Mini over the laptop: Keychain needs no unlocked 1Password session, and
 `data/manifest.csv` accumulates there, which the daily credit cap reads.
 
 **GitHub Actions:** `.github/workflows/capture.yml` runs on manual dispatch only
