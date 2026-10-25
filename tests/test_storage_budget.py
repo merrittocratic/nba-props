@@ -31,7 +31,7 @@ def test_manifest_sums_odds_credits_for_one_day(tmp_path):
 
 
 def test_budget_daily_cap():
-    b = CreditBudget(spent_today=140, remaining=10_000)
+    b = CreditBudget(spent_today=590, remaining=10_000)
     assert b.check(10) is None
     assert "daily cap" in b.check(11)
 

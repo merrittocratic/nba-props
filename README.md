@@ -8,19 +8,19 @@ joined here.
 
 | Source | What | Cost |
 |---|---|---|
-| The Odds API | `player_points`, `player_rebounds`, `player_assists`, `player_threes`, `player_points_rebounds_assists`; regions `us` and `us_dfs` | `/events` free; each event's odds up to 5 markets x 2 regions = 10 credits |
+| The Odds API | `player_points`, `player_rebounds`, `player_assists`, `player_threes`, `player_points_rebounds_assists`, `player_points_rebounds`; regions `us` and `us_dfs` | `/events` free; each event's odds up to 6 markets x 2 regions = 12 credits |
 | Kalshi | series `KXNBAPTS`, `KXNBAREB`, `KXNBAAST`, `KXNBA3PT`, `KXNBAPRA`, `KXNBAPR`, `KXNBAPA`, `KXNBARA` (open markets) plus batch order books | free, no auth |
 | Polymarket | Gamma `/events/keyset?tag_slug=nba` pages, plus CLOB `/books` for player-prop markets (points, rebounds, assists, threes) tipping off in the window | free, no auth |
 
 One run covers games tipping off in the next 24 hours (`--hours-ahead`).
-On a typical 8-game night it costs up to 80 Odds API credits; a 15-game night
-costs up to 150.
+On a typical 8-game night it costs up to 96 Odds API credits; a 15-game night
+costs up to 180.
 
 ## Credit guard
 
 Before every Odds API request the run checks:
 
-- a daily cap of **150 credits** (today's spend is summed from `data/manifest.csv`
+- a daily cap of **600 credits**, room for three runs on a 15-game night (today's spend is summed from `data/manifest.csv`
   plus each response's `x-requests-last`), and
 - a floor of **3,000 remaining credits** on the plan (from `x-requests-remaining`).
 

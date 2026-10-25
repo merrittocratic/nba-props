@@ -22,6 +22,7 @@ MARKETS = (
     "player_assists",
     "player_threes",
     "player_points_rebounds_assists",
+    "player_points_rebounds",
 )
 # us_dfs carries Underdog, PrizePicks, Pick6 and Dabble lines (prices are indicative only)
 REGIONS = ("us", "us_dfs")

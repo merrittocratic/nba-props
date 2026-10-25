@@ -64,7 +64,7 @@ def test_odds_api_key_never_written(tmp_path, make_recorder, clock, caplog):
 
 def test_odds_api_stops_at_daily_cap(tmp_path, make_recorder, clock):
     http = odds_http()
-    budget = CreditBudget(spent_today=135)  # room for exactly one 10-credit event
+    budget = CreditBudget(spent_today=580)  # room for one event (worst case 12, billed 10)
     odds_api.run(make_recorder(http), FAKE_KEY, budget, clock(), 24)
     rows = manifest_rows(tmp_path)
     assert [r["status"][:8] for r in rows] == ["200", "200", "skipped:"]

@@ -37,7 +37,7 @@ def test_dry_run_writes_nothing_and_makes_no_paid_calls(tmp_path, monkeypatch, c
     assert not any(c[1].endswith("/odds") for c in http.calls)
     assert not any(c[0] == "POST" or "orderbooks" in c[1] for c in http.calls)
     assert "DRY RUN" in out
-    assert "up to 20 for this run" in out  # 2 events x 5 markets x 2 regions
+    assert "up to 24 for this run" in out  # 2 events x 6 markets x 2 regions
     assert FAKE_KEY not in out
 
 

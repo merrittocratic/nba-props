@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from nbaprops.http import Response
 
-DAILY_CREDIT_CAP = 150
+DAILY_CREDIT_CAP = 600
 MONTHLY_FLOOR = 3000
 
 
