@@ -171,6 +171,7 @@ ROSTER = {
             "Danilo Gallinari",
             "Thanasis Antetokounmpo",
             "Goga Bitadze",
+            "Bub Carrington",
         ]
     )
 }
@@ -190,6 +191,7 @@ ROSTER = {
         ("G Antetokounmpo", None, None),  # Giannis sat; must not become Thanasis
         ("R. Lopez", "Robin Lopez", "initial"),
         ("Lopez", None, None),  # two Lopezes, no way to choose
+        ("Carlton Carrington", "Bub Carrington", "exact"),  # alias
     ],
 )
 def test_match_name_rules(odds_name, expected, rule):
@@ -207,3 +209,13 @@ def test_player_missing_from_box_score_is_void(tmp_path):
     assert status["Matt Ryan"] == "dnp"
     assert status["Jalen Brunson"] == "played"
     assert (res.loc[res["player_status"] != "played", "result"] == "void").all()
+
+
+def test_parse_summary_skips_partial_athletes():
+    summary = fixture_json("espn_summary.json")
+    _, rows = tidy.parse_summary(summary)
+    summary["boxscore"]["players"][0]["statistics"][0]["athletes"].append(
+        {"athlete": {"shortName": "Olbrich"}}
+    )
+    _, with_partial = tidy.parse_summary(summary)
+    assert len(with_partial) == len(rows)

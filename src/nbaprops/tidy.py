@@ -36,7 +36,8 @@ _KIND = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")
 # ESPN display names that differ from the Odds API's
 TEAM_ALIASES = {"LA Clippers": "Los Angeles Clippers"}
 # Player names that still differ after normalize_name, as {odds key: espn key}
-PLAYER_ALIASES: dict[str, str] = {}
+# Odds API name -> ESPN name (both normalized) where no matching rule can bridge them.
+PLAYER_ALIASES: dict[str, str] = {"carlton carrington": "bub carrington"}
 
 MARKET_STATS = {
     "player_points": ["pts"],
@@ -99,6 +100,8 @@ def parse_summary(summary: dict) -> tuple[dict, list[dict]]:
         for group in team_block["statistics"]:
             labels = group["labels"]
             for a in group["athletes"]:
+                if not a.get("athlete", {}).get("displayName"):
+                    continue  # partial entries (shortName only, no stats) appear in some games
                 s = dict(zip(labels, a.get("stats") or [], strict=False))  # DNP: no stats
                 fgm, fga = _made_attempted(s.get("FG"))
                 fg3m, fg3a = _made_attempted(s.get("3PT"))
@@ -364,11 +367,11 @@ def report(lines: pd.DataFrame, event_map: pd.DataFrame, result: pd.DataFrame) -
     ]
     absent = result[result["player_status"] == "absent"]
     if len(absent):
-        top = absent.groupby(["player_name", "espn_game_id"], observed=True).size()
-        top = top.sort_values(ascending=False).head(15)
+        games = absent.groupby("player_name", observed=True)["espn_game_id"].nunique()
+        top = games.sort_values(ascending=False).head(15)
         out.append(
-            "  absent (not in box score, treated as void): "
-            + ", ".join(f"{name} ({v})" for (name, _), v in top.items())
+            "  absent (not in box score, treated as void), games: "
+            + ", ".join(f"{name} ({v})" for name, v in top.items())
         )
     loose = result[result["match_method"].isin(["initial", "nickname", "fuzzy"])]
     if len(loose):
