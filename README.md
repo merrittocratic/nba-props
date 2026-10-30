@@ -132,6 +132,46 @@ caffeinate -i scripts/with-secrets.sh uv run python -m nbaprops.backfill \
 Use `--start`/`--end` (YYYY-MM-DD) to limit the range. DFS lines (`us_dfs`) appear only
 from about the 2024-25 season.
 
+## Outcomes (actual results)
+
+`python -m nbaprops.outcomes` pulls ESPN's public site API: no key, plain requests, a
+0.3 s pause between calls. It fetches one scoreboard per US date, then the game summary
+(box score plus play-by-play with UTC `wallclock` times) for each final game, back to
+2023-05-03 by default, newest first. Raw responses go to `data/raw/espn/`, about 380 KB
+per game, so ~1.5 GB for every game since May 2023. It's resumable, like the backfill.
+
+ESPN's API is unofficial and could change. Two cautions:
+- In historical summaries, `injuries` is today's injury list, not the game's. Never
+  use it as a feature (it leaks).
+- `reason` is filled in for players who played too. Only DNP rows keep it.
+
+## Tidy tables
+
+`python -m nbaprops.tidy` rebuilds parquet tables in `data/tidy/` from the raw files
+(about half a second for a two-day sample):
+
+| Table | One row per |
+|---|---|
+| `games` | ESPN game: tip-off, season, final score |
+| `box_scores` | player per game, including DNPs |
+| `prop_lines` | snapshot x book x market x player x line, over and under prices side by side |
+| `prop_outcomes` | `prop_lines` plus the actual stat, `margin` (actual - line), `result` |
+
+Joins:
+- Odds API events match ESPN games by teams and tip-off within 6 hours (ESPN lists
+  scheduled tip-off, the Odds API the actual).
+- Players match within that game's box score. Books spell names inconsistently
+  ("Irving, Kyrie", "Grant Jerami", "D. Jones Jr.", "Nicolas Claxton", "Danilo
+  Galinari"), so `match_name` tries strict rules first and accepts only a unique
+  candidate. The rule used is kept in `match_method`.
+- `player_status`: `played`, `dnp` (listed, didn't play) or `absent` (not in the box
+  score: inactive). DNP and absent lines are `void`, as books grade them.
+
+The run prints a match report (events and players matched, rules used, the most common
+absent players) for a quick check after each rebuild. On a two-day sample, 100% of
+events and 95.5% of lines matched. The rest were absent players, and box-score points
+matched final scores in all 19 games.
+
 ## Pulling Mini data to the laptop
 
 The Mini is where data accumulates; models are built on the laptop. `data/` isn't in

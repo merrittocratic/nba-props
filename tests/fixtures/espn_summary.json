@@ -1,0 +1,274 @@
+{
+ "header": {
+  "id": "401705127",
+  "season": {
+   "year": 2025,
+   "current": false,
+   "type": 2
+  },
+  "competitions": [
+   {
+    "date": "2025-01-16T00:00Z",
+    "status": {
+     "type": {
+      "name": "STATUS_FINAL"
+     }
+    },
+    "competitors": [
+     {
+      "homeAway": "home",
+      "score": "119",
+      "team": {
+       "id": "20",
+       "displayName": "Philadelphia 76ers"
+      }
+     },
+     {
+      "homeAway": "away",
+      "score": "125",
+      "team": {
+       "id": "18",
+       "displayName": "New York Knicks"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "boxscore": {
+  "players": [
+   {
+    "team": {
+     "id": "18",
+     "abbreviation": "NY",
+     "displayName": "New York Knicks"
+    },
+    "statistics": [
+     {
+      "labels": [
+       "MIN",
+       "PTS",
+       "FG",
+       "3PT",
+       "FT",
+       "REB",
+       "AST",
+       "TO",
+       "STL",
+       "BLK",
+       "OREB",
+       "DREB",
+       "PF",
+       "+/-"
+      ],
+      "athletes": [
+       {
+        "active": true,
+        "didNotPlay": false,
+        "ejected": false,
+        "reason": "COACH'S DECISION",
+        "starter": true,
+        "stats": [
+         "45",
+         "17",
+         "6-16",
+         "3-10",
+         "2-2",
+         "4",
+         "4",
+         "2",
+         "1",
+         "0",
+         "0",
+         "4",
+         "1",
+         "-2"
+        ],
+        "athlete": {
+         "id": "3934719",
+         "displayName": "OG Anunoby"
+        }
+       },
+       {
+        "active": true,
+        "didNotPlay": false,
+        "ejected": false,
+        "reason": "COACH'S DECISION",
+        "starter": true,
+        "stats": [
+         "49",
+         "10",
+         "4-9",
+         "0-3",
+         "2-3",
+         "17",
+         "12",
+         "3",
+         "4",
+         "0",
+         "5",
+         "12",
+         "3",
+         "+10"
+        ],
+        "athlete": {
+         "id": "3062679",
+         "displayName": "Josh Hart"
+        }
+       },
+       {
+        "active": true,
+        "didNotPlay": false,
+        "ejected": false,
+        "reason": "COACH'S DECISION",
+        "starter": true,
+        "stats": [
+         "45",
+         "38",
+         "14-22",
+         "3-6",
+         "7-9",
+         "5",
+         "4",
+         "5",
+         "2",
+         "0",
+         "1",
+         "4",
+         "1",
+         "+7"
+        ],
+        "athlete": {
+         "id": "3934672",
+         "displayName": "Jalen Brunson"
+        }
+       },
+       {
+        "active": false,
+        "didNotPlay": false,
+        "ejected": false,
+        "reason": "COACH'S DECISION",
+        "starter": false,
+        "stats": [
+         "22",
+         "13",
+         "4-5",
+         "3-4",
+         "2-2",
+         "3",
+         "3",
+         "0",
+         "1",
+         "0",
+         "1",
+         "2",
+         "1",
+         "+5"
+        ],
+        "athlete": {
+         "id": "4431823",
+         "displayName": "Miles McBride"
+        }
+       },
+       {
+        "active": false,
+        "didNotPlay": true,
+        "ejected": false,
+        "reason": "COACH'S DECISION",
+        "starter": false,
+        "stats": [],
+        "athlete": {
+         "id": "3908336",
+         "displayName": "Matt Ryan"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "team": {
+     "id": "20",
+     "abbreviation": "PHI",
+     "displayName": "Philadelphia 76ers"
+    },
+    "statistics": [
+     {
+      "labels": [
+       "MIN",
+       "PTS",
+       "FG",
+       "3PT",
+       "FT",
+       "REB",
+       "AST",
+       "TO",
+       "STL",
+       "BLK",
+       "OREB",
+       "DREB",
+       "PF",
+       "+/-"
+      ],
+      "athletes": [
+       {
+        "active": true,
+        "didNotPlay": false,
+        "ejected": false,
+        "reason": "COACH'S DECISION",
+        "starter": true,
+        "stats": [
+         "43",
+         "26",
+         "9-20",
+         "3-8",
+         "5-5",
+         "3",
+         "6",
+         "3",
+         "3",
+         "0",
+         "0",
+         "3",
+         "2",
+         "+4"
+        ],
+        "athlete": {
+         "id": "4251",
+         "displayName": "Paul George"
+        }
+       },
+       {
+        "active": true,
+        "didNotPlay": false,
+        "ejected": false,
+        "reason": "COACH'S DECISION",
+        "starter": true,
+        "stats": [
+         "46",
+         "33",
+         "13-32",
+         "2-9",
+         "5-5",
+         "6",
+         "6",
+         "4",
+         "1",
+         "1",
+         "2",
+         "4",
+         "3",
+         "-9"
+        ],
+        "athlete": {
+         "id": "4431678",
+         "displayName": "Tyrese Maxey"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Daily raw snapshots of NBA player prop lines and prediction-market prices"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pandas>=3.1.0",
+    "pyarrow>=26.0.0",
+]
 
 [dependency-groups]
 dev = [

@@ -1,0 +1,78 @@
+{
+ "events": [
+  {
+   "id": "401705127",
+   "date": "2025-01-16T00:00Z",
+   "shortName": "NY @ PHI",
+   "season": {
+    "year": 2025,
+    "type": 2,
+    "slug": "regular-season"
+   },
+   "status": {
+    "type": {
+     "name": "STATUS_FINAL"
+    }
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "119",
+       "team": {
+        "id": "20",
+        "displayName": "Philadelphia 76ers"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "125",
+       "team": {
+        "id": "18",
+        "displayName": "New York Knicks"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401705137",
+   "date": "2025-01-16T03:30Z",
+   "shortName": "BKN @ LAC",
+   "season": {
+    "year": 2025,
+    "type": 2,
+    "slug": "regular-season"
+   },
+   "status": {
+    "type": {
+     "name": "STATUS_FINAL"
+    }
+   },
+   "competitions": [
+    {
+     "competitors": [
+      {
+       "homeAway": "home",
+       "score": "126",
+       "team": {
+        "id": "12",
+        "displayName": "LA Clippers"
+       }
+      },
+      {
+       "homeAway": "away",
+       "score": "67",
+       "team": {
+        "id": "17",
+        "displayName": "Brooklyn Nets"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
