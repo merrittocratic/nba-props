@@ -12,16 +12,33 @@ joined here.
 | Kalshi | series `KXNBAPTS`, `KXNBAREB`, `KXNBAAST`, `KXNBA3PT`, `KXNBAPRA`, `KXNBAPR`, `KXNBAPA`, `KXNBARA` (open markets) plus batch order books | free, no auth |
 | Polymarket | Gamma `/events/keyset?tag_slug=nba` pages, plus CLOB `/books` for player-prop markets (points, rebounds, assists, threes) tipping off in the window | free, no auth |
 
-One run covers games tipping off in the next 24 hours (`--hours-ahead`).
-On a typical 8-game night it costs up to 96 Odds API credits; a 15-game night
-costs up to 180.
+## Snapshots
+
+Each game gets three Odds API snapshots, defined in `src/nbaprops/snapshots.py` and
+shared by the live capture and the historical backfill:
+
+| Snapshot | When |
+|---|---|
+| `open` | the first time prop lines are posted (books post them the evening before) |
+| `morning` | 11:00 ET on game day; skipped when tip-off is under two hours later (noon games) |
+| `close` | one hour before tip-off |
+
+The capture runs every 15 minutes and looks at games tipping off in the next 30 hours
+(`--hours-ahead`). For each game it takes the snapshot that is due, if it isn't already
+in the manifest. Weekend afternoon games and the Christmas slate need nothing special:
+each game's snapshots follow its own tip-off. An `open` check finds nothing until lines
+are posted. It costs 0 credits and isn't saved. Each snapshot costs up to 12 credits, so
+a 15-game night costs up to 540.
+
+Kalshi and Polymarket are pulled only on runs that took a `morning` or `close`
+snapshot (about 30 MB per pull, mostly Polymarket), not on `open`-only runs.
 
 ## Credit guard
 
 Before every Odds API request the run checks:
 
-- a daily cap of **600 credits**, room for three runs on a 15-game night (today's spend is summed from `data/manifest.csv`
-  plus each response's `x-requests-last`), and
+- a daily cap of **600 credits**, enough for three snapshots on a 15-game night (today's
+  spend is summed from `data/manifest.csv` plus each response's `x-requests-last`), and
 - a floor of **3,000 remaining credits** on the plan (from `x-requests-remaining`).
 
 If a request could cross either limit, the run logs it, writes a `skipped` manifest
@@ -60,8 +77,8 @@ scripts/with-secrets.sh uv run python -m nbaprops.capture
 
 ## Scheduling
 
-**Mac Mini (launchd):** run once a day before the evening slate, 6 pm local time.
-The LaunchAgent is `deploy/launchd/com.merritt.nba-props.capture.plist`. launchd does
+**Mac Mini (launchd):** every 15 minutes (`StartInterval` 900); each run takes only the
+snapshots due. If you change the plist, `bootout` and install it again. The LaunchAgent is `deploy/launchd/com.merritt.nba-props.capture.plist`. launchd does
 not expand `~` or `$HOME`, so install it from the repo root with the paths filled in:
 
 ```sh
@@ -85,7 +102,35 @@ Prefer the Mac Mini over the laptop: Keychain needs no unlocked 1Password sessio
 (dry run by default). It reads the key from the repository secret `ODDS_API_KEY`
 and uploads `data/` as a 90-day artifact. To schedule it, uncomment the `schedule`
 lines. Each runner starts with an empty `data/`, so there the daily cap only applies
-within a single run.
+within a single run, and snapshots already taken on the Mini are fetched again.
+
+## Historical backfill
+
+`python -m nbaprops.backfill` pulls the same three snapshots for past games from the
+Odds API historical endpoints, newest day first, back to 2023-05-03 (the first day with
+historical props). Costs:
+
+- each day's event listing: 1 credit
+- finding `open`: a binary search on a 15-minute grid with a cheap probe
+  (`player_points`, region `us`), 10 credits when lines exist, 0 when not, about 40 per game
+- each full snapshot: up to 10 x 6 markets x 2 regions = 120 credits
+
+That's about 400 credits per game, roughly 1.6M for the ~4,000 games since May 2023.
+Spend goes under the manifest source `odds_api_hist`, so it never counts against the live
+daily cap. It has its own cap, `--daily-cap` (default 500,000 per UTC day), and stops
+before the plan drops below `--floor` (default 50,000), which leaves room for the live
+capture. It's resumable: snapshots already in the manifest are skipped, so rerun the same
+command after a stop. A test day (11 games, 33 snapshots) took about a minute and 1.7 MB,
+so the whole backfill is roughly 6 hours and 600 MB under `data/raw/odds_api_hist/`.
+
+```sh
+scripts/with-secrets.sh uv run python -m nbaprops.backfill --dry-run   # listings only, 1 credit/day
+caffeinate -i scripts/with-secrets.sh uv run python -m nbaprops.backfill \
+    >> data/logs/backfill.log 2>&1
+```
+
+Use `--start`/`--end` (YYYY-MM-DD) to limit the range. DFS lines (`us_dfs`) appear only
+from about the 2024-25 season.
 
 ## Development
 

@@ -1,4 +1,4 @@
-"""The Odds API: NBA player props per event.
+"""The Odds API: NBA player props per event, one snapshot kind at a time (see snapshots.py).
 
 Costs (v4 docs): GET /events is free; GET /events/{id}/odds costs
 [unique markets returned] x [regions], so at most len(MARKETS) x len(REGIONS).
@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
+from nbaprops import snapshots
 from nbaprops.budget import CreditBudget, header_int
 from nbaprops.recorder import Recorder
 
@@ -46,8 +47,12 @@ def count_outcomes(event: dict) -> int:
 
 def run(
     rec: Recorder, api_key: str, budget: CreditBudget, now: datetime, hours_ahead: int
-) -> list[str]:
-    """Capture props for events tipping off in [now, now + hours_ahead]. Returns plan lines."""
+) -> tuple[list[str], set[str]]:
+    """Take the snapshot due now, if any, for each event tipping off within hours_ahead.
+
+    Returns plan lines and the snapshot kinds captured (or, in a dry run, due).
+    An open check that finds no lines posted yet costs nothing and is not saved.
+    """
     window = (iso_z(now), iso_z(now + timedelta(hours=hours_ahead)))
 
     def on_response(resp):
@@ -71,24 +76,33 @@ def run(
         on_response=on_response,
     )
     if events_resp is None or not events_resp.ok:
-        return [f"odds_api: could not list events (spent today {budget.spent_today})"]
+        return [f"odds_api: could not list events (spent today {budget.spent_today})"], set()
     events = events_resp.json()
+    taken = snapshots.done(rec.manifest, SOURCE)
+    due = []
+    for ev in events:
+        kind = snapshots.due_kind(snapshots.parse_tip(ev["commence_time"]), now)
+        if kind and (ev["id"], kind) not in taken:
+            due.append((ev, kind))
     worst = worst_case_cost()
     plan = [
-        f"odds_api: {len(events)} events tipping off {window[0]} .. {window[1]}",
+        f"odds_api: {len(events)} events tipping off {window[0]} .. {window[1]}, "
+        f"{len(due)} with a snapshot due",
         f"odds_api: markets={','.join(MARKETS)} regions={','.join(REGIONS)}",
-        f"odds_api: up to {worst} credits per event, up to {worst * len(events)} for this run",
+        f"odds_api: up to {worst} credits per snapshot, up to {worst * len(due)} for this run",
         f"odds_api: spent today {budget.spent_today}/{budget.daily_cap}, "
         f"remaining on plan {budget.remaining} (floor {budget.monthly_floor})",
     ]
-    for ev in events:
+    captured = set()
+    for ev, kind in due:
         label = f"{ev['away_team']} @ {ev['home_team']} {ev['commence_time']}"
         if rec.dry_run:
-            plan.append(f"  would fetch {label} (up to {worst} credits)")
+            plan.append(f"  would fetch [{kind}] {label} (up to {worst} credits)")
+            captured.add(kind)
             continue
-        rec.fetch(
+        resp = rec.fetch(
             SOURCE,
-            f"GET /events/{ev['id']}/odds ({label})",
+            f"GET {snapshots.label(ev['id'], kind)} ({label})",
             lambda ev=ev: rec.http.get(
                 f"{BASE}/events/{ev['id']}/odds",
                 [
@@ -103,8 +117,11 @@ def run(
             cost=lambda r: header_int(r, "x-requests-last") or 0,
             precheck=lambda: budget.check(worst),
             on_response=on_response,
+            keep=(lambda r: not r.ok or count_outcomes(r.json()) > 0) if kind == "open" else None,
         )
+        if resp is not None and resp.ok and (kind != "open" or count_outcomes(resp.json())):
+            captured.add(kind)
     if rec.dry_run:
-        blocked = budget.check(worst * len(events))
+        blocked = budget.check(worst * len(due))
         plan.append(f"odds_api: budget check for full run: {blocked or 'ok'}")
-    return plan
+    return plan, captured

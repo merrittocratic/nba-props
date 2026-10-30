@@ -1,5 +1,9 @@
 """Entry point: python -m nbaprops.capture [--dry-run]
 
+Meant to run every 15 minutes. Each run takes the Odds API snapshot due for each
+game (open, morning, close; see snapshots.py), and pulls Kalshi and Polymarket only
+on runs that took a morning or close snapshot, since those pulls are large.
+
 Reads the Odds API key from the ODDS_API_KEY environment variable only.
 Writes raw responses to <data-dir>/raw/<source>/<date>/<UTC timestamp>.json and
 one row per request to <data-dir>/manifest.csv. A dry run makes only the free
@@ -23,6 +27,7 @@ from nbaprops.storage import Manifest, RawStore
 log = logging.getLogger("nbaprops")
 
 SOURCES = ("odds_api", "kalshi", "polymarket")
+MARKET_SNAPSHOTS = {"morning", "close"}
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -30,7 +35,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", help="free listing calls only; write nothing")
     p.add_argument("--data-dir", default="data", type=Path)
     p.add_argument(
-        "--hours-ahead", default=24, type=int, help="capture games tipping off within N hours"
+        "--hours-ahead", default=30, type=int, help="consider games tipping off within N hours"
     )
     p.add_argument(
         "--sources",
@@ -62,6 +67,7 @@ def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) 
     )
 
     plan: list[str] = []
+    odds_kinds: set[str] | None = None  # None: the Odds API didn't run, so don't gate
     for source in sources:
         try:
             if source == "odds_api":
@@ -71,7 +77,10 @@ def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) 
                     plan.append("odds_api: skipped, ODDS_API_KEY not set")
                     continue
                 budget = CreditBudget(spent_today=manifest.credits_spent_on("odds_api", now.date()))
-                plan += odds_api.run(rec, api_key, budget, now, args.hours_ahead)
+                lines, odds_kinds = odds_api.run(rec, api_key, budget, now, args.hours_ahead)
+                plan += lines
+            elif odds_kinds is not None and not odds_kinds & MARKET_SNAPSHOTS:
+                plan.append(f"{source}: skipped, no morning or close snapshot this run")
             elif source == "kalshi":
                 plan += kalshi.run(rec)
             elif source == "polymarket":

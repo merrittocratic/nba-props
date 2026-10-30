@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Daily raw capture on the Mac Mini, 6 pm local time.
+  Raw capture on the Mac Mini every 15 minutes; each run takes only the snapshots due.
   __REPO__ and __HOME__ are substituted at install time; see README "Scheduling".
 -->
 <plist version="1.0">
@@ -28,13 +28,8 @@
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:__HOME__/.local/bin</string>
   </dict>
 
-  <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key>
-    <integer>18</integer>
-    <key>Minute</key>
-    <integer>0</integer>
-  </dict>
+  <key>StartInterval</key>
+  <integer>900</integer>
 
   <key>StandardOutPath</key>
   <string>__REPO__/data/logs/capture.log</string>

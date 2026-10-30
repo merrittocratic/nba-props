@@ -68,11 +68,14 @@ class Recorder:
         cost: Callable[[Response], int] = lambda r: 0,
         precheck: Callable[[], str | None] | None = None,
         on_response: Callable[[Response], None] | None = None,
+        keep: Callable[[Response], bool] | None = None,
     ) -> Response | None:
         """Send a request; on success save the raw body and log a manifest row.
 
         `request` is a key-free label. `precheck` runs before every attempt and
         returns a reason string to stop. Retries once on network errors, 429 and 5xx.
+        A non-retryable response that `keep` rejects is returned without saving the
+        body or counting a failure; it gets a manifest row only if it cost credits.
         """
         for attempt in (1, 2):
             if precheck and (reason := precheck()):
@@ -91,6 +94,20 @@ class Recorder:
                 if on_response:
                     on_response(resp)
             spent = cost(resp) if resp is not None else 0
+            if keep and resp is not None and resp.status not in RETRY_STATUSES and not keep(resp):
+                if spent and not self.dry_run:
+                    self.manifest.append(
+                        {
+                            "source": source,
+                            "fetched_at": fetched_at.isoformat(),
+                            "status": f"{resp.status} discarded",
+                            "row_count": 0,
+                            "request_cost": spent,
+                            "request": request,
+                        }
+                    )
+                log.info("[%s] %s -> %s discarded cost=%s", source, request, status, spent)
+                return resp
 
             row = {
                 "source": source,
