@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 
 from nbaprops.http import Response
 
@@ -25,9 +26,14 @@ class CreditBudget:
     daily_cap: int = DAILY_CREDIT_CAP
     monthly_floor: int = MONTHLY_FLOOR
     remaining: int | None = None
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def check(self, worst_case: int) -> str | None:
         """Return a reason to stop if a request costing up to `worst_case` could cross a limit."""
+        with self._lock:
+            return self._check(worst_case)
+
+    def _check(self, worst_case: int) -> str | None:
         if self.spent_today + worst_case > self.daily_cap:
             return (
                 f"daily cap: spent {self.spent_today} today + up to {worst_case} "
@@ -41,7 +47,8 @@ class CreditBudget:
         return None
 
     def record(self, resp: Response) -> None:
-        self.spent_today += header_int(resp, "x-requests-last") or 0
-        remaining = header_int(resp, "x-requests-remaining")
-        if remaining is not None:
-            self.remaining = remaining
+        with self._lock:
+            self.spent_today += header_int(resp, "x-requests-last") or 0
+            remaining = header_int(resp, "x-requests-remaining")
+            if remaining is not None:
+                self.remaining = remaining

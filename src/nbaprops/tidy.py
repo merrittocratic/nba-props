@@ -26,11 +26,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from nbaprops import backfill, odds_api, outcomes
+from nbaprops import backfill, inplay, odds_api, outcomes
 from nbaprops.snapshots import ET
 from nbaprops.storage import Manifest
 
-ODDS_SOURCES = (odds_api.SOURCE, backfill.SOURCE)
+ODDS_SOURCES = (odds_api.SOURCE, backfill.SOURCE, inplay.SOURCE)
 _KIND = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")
 
 # ESPN display names that differ from the Odds API's
@@ -141,7 +141,7 @@ def parse_summary(summary: dict) -> tuple[dict, list[dict]]:
 
 def parse_odds_snapshot(body: dict, source: str, kind: str, fetched_at: str) -> list[tuple]:
     """One saved event-odds response -> line rows (over/under paired)."""
-    if source == backfill.SOURCE:
+    if source != odds_api.SOURCE:  # historical responses wrap the event in data
         event, snapshot_ts = body.get("data") or {}, body.get("timestamp")
     else:
         event, snapshot_ts = body, fetched_at

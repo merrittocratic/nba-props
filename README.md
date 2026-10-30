@@ -130,7 +130,32 @@ caffeinate -i scripts/with-secrets.sh uv run python -m nbaprops.backfill \
 ```
 
 Use `--start`/`--end` (YYYY-MM-DD) to limit the range. DFS lines (`us_dfs`) appear only
-from about the 2024-25 season.
+from about the 2024-25 season. The daily cap is this repo's own guard, not an API limit;
+raise it with `--daily-cap` when the whole backfill must finish sooner.
+
+## In-game backfill
+
+`python -m nbaprops.inplay` pulls historical in-game `player_points` lines (region `us`):
+a snapshot every 5 minutes from tip-off, labeled `inplay_000`, `inplay_005`, ... by minutes
+after tip. It stops when lines are gone twice in a row after minute 90, or at minute 210.
+Snapshots with no lines, and the 404 the API returns once a game has left the feed, cost
+nothing and aren't saved. Each snapshot with lines costs 10 credits, about 300 per game.
+
+Spend goes under the manifest source `odds_api_inplay`, with its own `--daily-cap`
+(default 2,000,000) and the same `--floor` (50,000). Six games run at once (`--workers`).
+It's resumable, like the backfill. A test day (11 games) took 37 seconds and 3.1 MB, so
+all ~4,000 games since May 2023 are roughly 4 hours, 1.2M credits and 1.1 GB. Live books
+re-price during games and drop out late, and some late lines are stale (still posted after
+the player has passed them), so check snapshot times against play-by-play before using them.
+
+```sh
+op run --env-file=.env.template -- uv run python -m nbaprops.inplay --dry-run   # listings only
+caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.inplay \
+    --data-dir data/inplay >> data/inplay/inplay.log 2>&1
+```
+
+The laptop run writes to `data/inplay/`, not `data/mini/`, because each pull from the Mini
+replaces `data/mini/manifest.csv`.
 
 ## Outcomes (actual results)
 

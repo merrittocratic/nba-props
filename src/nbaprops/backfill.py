@@ -61,11 +61,13 @@ def snapshot_data(resp: Response | None) -> dict:
 
 
 class Backfill:
+    source = SOURCE
+
     def __init__(self, rec: Recorder, api_key: str, budget: CreditBudget):
         self.rec = rec
         self.api_key = api_key
         self.budget = budget
-        self.taken = snapshots.done(rec.manifest, SOURCE)
+        self.taken = snapshots.done(rec.manifest, self.source)
         self.stopped: str | None = None
 
     def get(
@@ -78,7 +80,7 @@ class Backfill:
         **kw,
     ):
         return self.rec.fetch(
-            SOURCE,
+            self.source,
             request,
             lambda: self.rec.http.get(
                 f"{BASE}{path}", [("apiKey", self.api_key), ("dateFormat", "iso"), *params]
@@ -162,7 +164,7 @@ class Backfill:
             if kind == "open":
                 at = self.find_open(ev, tip)
                 if at is None:
-                    log.info("[%s] %s: no lines before morning/close", SOURCE, ev["id"])
+                    log.info("[%s] %s: no lines before morning/close", self.source, ev["id"])
                     continue
             elif kind == "morning":
                 at = snapshots.morning_at(tip)

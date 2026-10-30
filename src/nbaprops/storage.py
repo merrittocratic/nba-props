@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import csv
 import itertools
+import threading
 from datetime import date, datetime
 from pathlib import Path
+
+# One lock per process: the in-play backfill appends from several threads.
+_APPEND_LOCK = threading.Lock()
 
 MANIFEST_FIELDS = ["source", "fetched_at", "status", "row_count", "request_cost", "request", "path"]
 
@@ -38,12 +42,13 @@ class Manifest:
 
     def append(self, row: dict) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        new = not self.path.exists()
-        with open(self.path, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=MANIFEST_FIELDS)
-            if new:
-                writer.writeheader()
-            writer.writerow({k: row.get(k, "") for k in MANIFEST_FIELDS})
+        with _APPEND_LOCK:
+            new = not self.path.exists()
+            with open(self.path, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=MANIFEST_FIELDS)
+                if new:
+                    writer.writeheader()
+                writer.writerow({k: row.get(k, "") for k in MANIFEST_FIELDS})
 
     def rows(self) -> list[dict]:
         if not self.path.exists():
