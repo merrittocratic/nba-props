@@ -37,7 +37,15 @@ _KIND = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")
 TEAM_ALIASES = {"LA Clippers": "Los Angeles Clippers"}
 # Player names that still differ after normalize_name, as {odds key: espn key}
 # Odds API name -> ESPN name (both normalized) where no matching rule can bridge them.
-PLAYER_ALIASES: dict[str, str] = {"carlton carrington": "bub carrington"}
+PLAYER_ALIASES: dict[str, str] = {
+    "alfred joel horford reynoso": "al horford",
+    "bj boston": "brandon boston",
+    "carlton carrington": "bub carrington",
+    "christian james mccollum": "cj mccollum",
+    "moe wagner": "moritz wagner",  # Franz Wagner is a teammate, so no rule can choose
+    "mohamed bamba": "mo bamba",
+    "obadiah toppin": "obi toppin",
+}
 
 MARKET_STATS = {
     "player_points": ["pts"],
@@ -272,7 +280,8 @@ def match_name(name: str, roster: dict[str, str]) -> tuple[str | None, str | Non
     def unique(keys: list[str], rule: str):
         return (roster[keys[0]], rule) if len(keys) == 1 else (None, None)
 
-    if len(words) == 2 and (flipped := f"{words[1]} {words[0]}") in roster:
+    # Last name first: "Grant Jerami", "Caldwell Pope Kentavious"
+    if len(words) >= 2 and (flipped := " ".join([words[-1], *words[:-1]])) in roster:
         return roster[flipped], "reversed"
     if len(words) > 2 and (short := f"{words[0]} {words[-1]}") in roster:
         return roster[short], "first_last"
@@ -380,12 +389,26 @@ def report(lines: pd.DataFrame, event_map: pd.DataFrame, result: pd.DataFrame) -
     return out
 
 
+def local_path(data_dir: Path, path: str) -> str:
+    """A manifest path re-rooted under data_dir. Raw files sit at raw/<source>/<date>/<file>,
+    but the manifest records them as the writing machine saw them (on the Mini, data/raw/...;
+    pulled to the laptop, they live under data/mini/raw/...)."""
+    parts = Path(path).parts
+    if len(parts) >= 4 and parts[-4] == "raw":
+        return str(data_dir.joinpath(*parts[-4:]))
+    return path
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m nbaprops.tidy", description=__doc__)
     p.add_argument("--data-dir", default="data", type=Path)
+    p.add_argument("--out-dir", type=Path, help="default: <data-dir>/tidy")
     args = p.parse_args(argv)
-    rows = Manifest(args.data_dir).rows()
-    out_dir = args.data_dir / "tidy"
+    rows = [
+        r | {"path": local_path(args.data_dir, r["path"])} if r.get("path") else r
+        for r in Manifest(args.data_dir).rows()
+    ]
+    out_dir = args.out_dir or args.data_dir / "tidy"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     games, box = load_box_scores(rows)

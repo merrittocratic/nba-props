@@ -172,6 +172,9 @@ ROSTER = {
             "Thanasis Antetokounmpo",
             "Goga Bitadze",
             "Bub Carrington",
+            "Kentavious Caldwell-Pope",
+            "Moritz Wagner",
+            "Franz Wagner",
         ]
     )
 }
@@ -192,6 +195,8 @@ ROSTER = {
         ("R. Lopez", "Robin Lopez", "initial"),
         ("Lopez", None, None),  # two Lopezes, no way to choose
         ("Carlton Carrington", "Bub Carrington", "exact"),  # alias
+        ("Caldwell Pope Kentavious", "Kentavious Caldwell-Pope", "reversed"),
+        ("Moe Wagner", "Moritz Wagner", "exact"),  # alias; Franz is a teammate
     ],
 )
 def test_match_name_rules(odds_name, expected, rule):
@@ -219,3 +224,11 @@ def test_parse_summary_skips_partial_athletes():
     )
     _, with_partial = tidy.parse_summary(summary)
     assert len(with_partial) == len(rows)
+
+
+def test_local_path_reroots_pulled_manifest_paths(tmp_path):
+    mini = "data/raw/odds_api_hist/2025-01-15/20250115T230538Z.json"
+    assert tidy.local_path(tmp_path, mini) == str(
+        tmp_path / "raw" / "odds_api_hist" / "2025-01-15" / "20250115T230538Z.json"
+    )
+    assert tidy.local_path(tmp_path, "elsewhere.json") == "elsewhere.json"
