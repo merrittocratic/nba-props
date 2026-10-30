@@ -132,6 +132,26 @@ caffeinate -i scripts/with-secrets.sh uv run python -m nbaprops.backfill \
 Use `--start`/`--end` (YYYY-MM-DD) to limit the range. DFS lines (`us_dfs`) appear only
 from about the 2024-25 season.
 
+## Pulling Mini data to the laptop
+
+The Mini is where data accumulates; models are built on the laptop. `data/` isn't in
+git, which is the wrong tool for this volume anyway (the backfill is ~600 MB, and Kalshi
+and Polymarket add ~150 MB a day in season). So the laptop pulls with rsync over SSH,
+one way, into `data/mini/`:
+
+```sh
+scripts/pull-from-mini.sh --dry-run     # list what would be copied
+scripts/pull-from-mini.sh               # copy new or changed files
+```
+
+It connects as `merrittocracyclaw` (the account Earnest runs under) to
+`Stephens-mac-mini.local` and asks for that account's password (plain SSH). It reads
+`~/nba-props/data/` in that account's home. If that changes, set `NBA_PROPS_MINI`
+(user@host) or `NBA_PROPS_MINI_DIR` (path relative to that home). The pull never deletes or writes
+anything on the Mini, and it leaves the laptop's own `data/` (dev runs, probes) alone.
+In `data/mini/manifest.csv` the `path` column holds Mini absolute paths. Keep the part
+from `raw/` on and look it up under `data/mini/`.
+
 ## Development
 
 ```sh
