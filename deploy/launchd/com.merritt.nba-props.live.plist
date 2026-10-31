@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Live in-game player_points snapshots on the Mac Mini at :00, :05, ... :55. Each run
+  takes one snapshot per game in progress and exits at once when no game is on.
+  __REPO__ and __HOME__ are substituted at install time; see README "Scheduling".
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.merritt.nba-props.live</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__REPO__/scripts/with-secrets.sh</string>
+    <string>uv</string>
+    <string>run</string>
+    <string>python</string>
+    <string>-m</string>
+    <string>nbaprops.live</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__REPO__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:__HOME__/.local/bin</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Minute</key><integer>10</integer></dict>
+    <dict><key>Minute</key><integer>15</integer></dict>
+    <dict><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Minute</key><integer>25</integer></dict>
+    <dict><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Minute</key><integer>45</integer></dict>
+    <dict><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Minute</key><integer>55</integer></dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>__REPO__/data/logs/live.log</string>
+  <key>StandardErrorPath</key>
+  <string>__REPO__/data/logs/live.log</string>
+</dict>
+</plist>

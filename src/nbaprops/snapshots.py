@@ -65,11 +65,17 @@ def label(event_id: str, kind: str) -> str:
     return f"/events/{event_id}/odds [{kind}]"
 
 
+def parse_label(request: str) -> tuple[str, str] | None:
+    """(event_id, kind) from a manifest request label, or None."""
+    m = _LABEL.search(request)
+    return (m.group(1), m.group(2)) if m else None
+
+
 def done(manifest: Manifest, source: str) -> set[tuple[str, str]]:
     """(event_id, kind) pairs already captured with a 200 for `source`."""
     pairs = set()
     for row in manifest.rows():
         if row["source"] == source and row["status"] == "200":
-            if m := _LABEL.search(row["request"]):
-                pairs.add((m.group(1), m.group(2)))
+            if pair := parse_label(row["request"]):
+                pairs.add(pair)
     return pairs

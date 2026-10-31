@@ -26,11 +26,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from nbaprops import backfill, inplay, odds_api, outcomes
+from nbaprops import backfill, inplay, live, odds_api, outcomes
 from nbaprops.snapshots import ET
 from nbaprops.storage import Manifest
 
-ODDS_SOURCES = (odds_api.SOURCE, backfill.SOURCE, inplay.SOURCE)
+ODDS_SOURCES = (odds_api.SOURCE, backfill.SOURCE, inplay.SOURCE, live.SOURCE)
+HISTORICAL_SOURCES = (backfill.SOURCE, inplay.SOURCE)
 _KIND = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")
 
 # ESPN display names that differ from the Odds API's
@@ -152,7 +153,7 @@ def parse_summary(summary: dict) -> tuple[dict, list[dict]]:
 
 def parse_odds_snapshot(body: dict, source: str, kind: str, fetched_at: str) -> list[tuple]:
     """One saved event-odds response -> line rows (over/under paired)."""
-    if source != odds_api.SOURCE:  # historical responses wrap the event in data
+    if source in HISTORICAL_SOURCES:  # historical responses wrap the event in data
         event, snapshot_ts = body.get("data") or {}, body.get("timestamp")
     else:
         event, snapshot_ts = body, fetched_at
@@ -318,8 +319,9 @@ def match_players(lines: pd.DataFrame, box: pd.DataFrame) -> pd.DataFrame:
         match_name(name, rosters.get(gid, {}))
         for gid, name in zip(pairs["espn_game_id"], pairs["player_name"], strict=True)
     ]
-    pairs["espn_player_id"] = [f[0] for f in found]
-    pairs["match_method"] = [f[1] for f in found]
+    # object dtype even when nothing matched, so the merge on espn_player_id still works
+    pairs["espn_player_id"] = pd.Series([f[0] for f in found], index=pairs.index, dtype=object)
+    pairs["match_method"] = pd.Series([f[1] for f in found], index=pairs.index, dtype=object)
     return pairs
 
 

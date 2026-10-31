@@ -95,6 +95,26 @@ with `launchctl kickstart gui/$(id -u)/com.merritt.nba-props.capture`, and unloa
 `data/logs/capture.log`. A run missed while the Mini sleeps fires on wake. Don't use
 cron on the Mini: it needs Full Disk Access and can't reliably reach the Keychain.
 
+**Live in-game (launchd):** `deploy/launchd/com.merritt.nba-props.live.plist` runs
+`python -m nbaprops.live` at :00, :05, ... :55 (`StartCalendarInterval`). Each run lists
+games that tipped off in the last 4 hours (free) and takes one `player_points` snapshot
+(region `us`, 1 credit) per game in progress, labeled `inplay_MMM` like the historical
+in-game backfill. It follows a game to minute 210, or until two checks in a row past minute
+90 find no lines. Empty snapshots are saved, since the stop rule reads them from the
+manifest; listings with no game on are not, so idle hours leave nothing. Spend goes under
+`odds_api_live`, with its own daily cap of 800 (about 30 credits a game, roughly 6K a month
+in season), apart from the pregame capture's 600. Install it the same way:
+
+```sh
+sed -e "s|__REPO__|$PWD|g" -e "s|__HOME__|$HOME|g" \
+    deploy/launchd/com.merritt.nba-props.live.plist \
+    > ~/Library/LaunchAgents/com.merritt.nba-props.live.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.merritt.nba-props.live.plist
+```
+
+Output goes to `data/logs/live.log`. Check, test-fire and unload it with `launchctl print`,
+`kickstart` and `bootout` on `gui/$(id -u)/com.merritt.nba-props.live`.
+
 Prefer the Mac Mini over the laptop: Keychain needs no unlocked 1Password session, and
 `data/manifest.csv` accumulates there, which the daily credit cap reads.
 
