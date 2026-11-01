@@ -117,6 +117,33 @@ played. Consensus line = median of the books' main lines.
   window. Only three pregame snapshots are available; denser intraday moves need the
   live capture (from 2026-10) or the in-play table.
 
+### A5. How price and line trade off (price per point of line)
+- **Question:** when news moves a player's expected output, how much price is one point of
+  line worth, and how do books split a move between line and price?
+- **Expected (written before plotting):** near the middle of the distribution, a point
+  of line is worth roughly the density there: about 1/(sd x 2.5), so ~6% for points
+  (sd ~6.3) and far more for threes (sd ~1.4), where one step is most of the move.
+- **Observed (2026-11-01, close ladders at Bovada, BetRivers, Unibet):** mean no-vig over
+  probability by distance from the main line:
+
+  | Market | -2 | -1 | main | +1 | +2 |
+  |---|---|---|---|---|---|
+  | Points | 62.7% | 56.3% | 49.9% | 43.7% | 37.7% |
+  | PRA | 59.8% | 54.9% | 49.9% | 45.0% | 40.6% |
+  | Rebounds | 68.0% | 62.8% | 49.6% | 37.2% | 32.3% |
+  | Assists | 69.0% | 64.3% | 49.4% | 35.5% | 31.2% |
+  | Threes | | 69.0% | 49.0% | 30.9% | |
+
+  For points, one point of line is worth 8.2% at lines up to 10, 6.8% at 10-15, 5.8% at
+  15-20, 5.3% at 20-25, 4.8% at 25-30 and 4.5% above 30 (wider distributions spread the
+  probability thinner). In the count markets the first step off the main line is worth
+  13-20%, which is why those books move the price instead of the line (A4: 92% of
+  threes lines never moved).
+- **Decision:** next, follow the same book's line *and* price across open -> morning ->
+  close to classify moves (price only; line moves and price resets; both) and to measure
+  how big a price move has to get before the line moves. Finer than three pregame
+  snapshots would need more frequent pregame capture (costs credits).
+
 ---
 
 ## Part B: candidates from box scores and game lines (data in hand)
@@ -136,8 +163,30 @@ played. Consensus line = median of the books' main lines.
 
 ## Part C: tracking and self-creation (NBA.com, not yet pulled)
 
-Source: NBA.com stats API via the `nba_api` package. Each endpoint needs a probe
-(seasons 2023-24 to 2025-26, date filters, works from the Mini).
+Source: NBA.com stats API via the `nba_api` package.
+
+**Probe results (2026-11-01, from the laptop):** every endpoint below answered for
+2023-24, 2024-25, 2025-26 and 2026-27, responding in 0.1-1 s.
+- `DateFrom`/`DateTo` works on the league dashboards (Brunson 2024-25: 65 GP for the
+  full season, 20 GP to 2024-12-01) and on `playerdashptshots` (single-game shot groups).
+  So season-to-date, as-of-the-day-before values can be built without leakage.
+- `synergyplaytypes` has **no date parameters**: season-level only, so C7 must use the
+  prior season.
+- Per-game boxes (`boxscoreplayertrackv3`, `boxscorehustlev2`, `boxscorematchupsv3`,
+  `playbyplayv3`) work back to 2023-24 and for 2026-27 games already played. The
+  player-tracking box has contested/uncontested FGA, touches, passes, secondary assists,
+  speed, distance and rebound chances. The hustle box has screen assists, screen-assist
+  points, deflections and box outs. The matchups box has every offense-defense pair's
+  matchup minutes, partial possessions, points, FGA and switches. The play-by-play has
+  shot x/y, distance and shot subtype (pull-up, driving, step back), and the assister is
+  in the description text.
+- NBA.com game IDs (e.g. `0022400264`) differ from ESPN's; join on date + teams.
+- Works from the Mini too (Earnest, 2026-11-01: `boxscoreplayertrackv3` returned (35, 37)).
+  Not yet tested: how hard NBA.com throttles a long run.
+- Rough backfill size: 4 per-game boxes x ~4,100 games = ~16K requests (~7 h at a
+  1.5 s pause). For defender-distance shot groups, use the league-wide per-day version
+  (`leaguedashplayerptshot` with a defender-distance filter, not yet tested) instead of
+  per-player calls.
 
 | ID | Feature | Endpoint | Hypothesis | Status |
 |---|---|---|---|---|
