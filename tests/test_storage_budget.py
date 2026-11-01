@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 
-from nbaprops.budget import CreditBudget
+from nbaprops.budget import DAILY_CREDIT_CAP, MONTHLY_FLOOR, CreditBudget
 from nbaprops.http import Response
 from nbaprops.storage import Manifest, RawStore
 
@@ -31,13 +31,13 @@ def test_manifest_sums_odds_credits_for_one_day(tmp_path):
 
 
 def test_budget_daily_cap():
-    b = CreditBudget(spent_today=590, remaining=10_000)
+    b = CreditBudget(spent_today=DAILY_CREDIT_CAP - 10, remaining=10_000)
     assert b.check(10) is None
     assert "daily cap" in b.check(11)
 
 
 def test_budget_monthly_floor():
-    b = CreditBudget(spent_today=0, remaining=3_005)
+    b = CreditBudget(spent_today=0, remaining=MONTHLY_FLOOR + 5)
     assert b.check(5) is None
     assert "monthly floor" in b.check(10)
 

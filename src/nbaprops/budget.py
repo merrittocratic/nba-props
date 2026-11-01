@@ -7,8 +7,10 @@ from dataclasses import dataclass, field
 
 from nbaprops.http import Response
 
-DAILY_CREDIT_CAP = 600
-MONTHLY_FLOOR = 3000
+# 600 for three full snapshots on a 15-game night, plus up to 14 one-credit intraday
+# snapshots per game.
+DAILY_CREDIT_CAP = 810
+MONTHLY_FLOOR = 2000
 
 
 def header_int(resp: Response | None, name: str) -> int | None:

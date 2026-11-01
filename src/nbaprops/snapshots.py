@@ -6,6 +6,10 @@
 
 Each kind owns a window [start, end) before tip-off, and the windows don't overlap,
 so at any moment at most one snapshot is due for a game.
+
+On top of those, a points-only "intraday" snapshot every 2 hours between the open and
+close (kinds pts_t28 .. pts_t02, the hours left before tip-off), so the line and price
+can be followed through the day. See intraday_kind.
 """
 
 from __future__ import annotations
@@ -23,6 +27,8 @@ CLOSE_LEAD = timedelta(hours=1)
 MORNING_MIN_GAP = timedelta(hours=1)
 # Events appear in the Odds API about a day before tip-off; look a little further back.
 OPEN_LOOKBACK = timedelta(hours=30)
+
+INTRADAY_STEP = timedelta(hours=2)
 
 _LABEL = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")
 
@@ -58,6 +64,17 @@ def due_kind(tip: datetime, now: datetime) -> str | None:
         if w and w[0] <= now < w[1]:
             return kind
     return None
+
+
+def intraday_kind(tip: datetime, now: datetime) -> str | None:
+    """'pts_tHH' when now is HH to HH+2 hours before tip-off (HH even, 2..28), else None.
+
+    The last 2 hours are left to the close snapshot.
+    """
+    left = tip - now
+    if left < INTRADAY_STEP or left >= OPEN_LOOKBACK:
+        return None
+    return f"pts_t{int(left // INTRADAY_STEP) * 2:02d}"
 
 
 def label(event_id: str, kind: str) -> str:

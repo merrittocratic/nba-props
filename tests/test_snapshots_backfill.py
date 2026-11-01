@@ -76,13 +76,44 @@ def test_live_open_check_with_no_lines_is_not_saved(tmp_path, make_recorder):
 def test_live_snapshot_taken_once_per_kind(tmp_path, make_recorder):
     http = live_http(fixture_bytes("odds_event_odds.json"), "12")
     now = at(2025, 1, 15, 2)
+
+    def odds_calls():
+        return [c[1] for c in http.calls if c[1].endswith("/odds")]
+
     _, kinds = odds_api.run(make_recorder(http), FAKE_KEY, CreditBudget(spent_today=0), now, 30)
     assert kinds == {"open"}
-    odds_calls = sum(1 for c in http.calls if c[1].endswith("/odds"))
+    assert len(odds_calls()) == 2  # two events, open only: intraday waits for open
+    # Second run: open is not refetched; the intraday snapshot is now due (22h10m out).
+    _, kinds = odds_api.run(make_recorder(http), FAKE_KEY, CreditBudget(spent_today=0), now, 30)
+    assert kinds == {"pts_t22"}
+    assert len(odds_calls()) == 4
     odds_api.run(make_recorder(http), FAKE_KEY, CreditBudget(spent_today=0), now, 30)
-    assert sum(1 for c in http.calls if c[1].endswith("/odds")) == odds_calls  # no refetch
+    assert len(odds_calls()) == 4  # nothing left to take
     labels = [r["request"] for r in manifest_rows(tmp_path) if "/odds" in r["request"]]
-    assert all("[open]" in lab for lab in labels) and len(labels) == 2  # two events
+    assert sum("[open]" in lab for lab in labels) == 2
+    assert sum("[pts_t22]" in lab for lab in labels) == 2
+
+
+def test_intraday_snapshot_is_points_us_only(tmp_path, make_recorder):
+    http = live_http(fixture_bytes("odds_event_odds.json"), "1")
+    now = at(2025, 1, 15, 2)
+    odds_api.run(make_recorder(http), FAKE_KEY, CreditBudget(spent_today=0), now, 30)
+    n_open = len(http.calls)
+    odds_api.run(make_recorder(http), FAKE_KEY, CreditBudget(spent_today=0), now, 30)
+    intraday = [c for c in http.calls[n_open:] if c[1].endswith("/odds")]
+    assert intraday
+    for c in intraday:
+        params = dict(c[2])
+        assert params["markets"] == "player_points" and params["regions"] == "us"
+
+
+def test_intraday_kind_slots():
+    tip = WEEKNIGHT
+    assert snapshots.intraday_kind(tip, tip - timedelta(hours=30)) is None  # before lookback
+    assert snapshots.intraday_kind(tip, tip - timedelta(hours=29, minutes=59)) == "pts_t28"
+    assert snapshots.intraday_kind(tip, tip - timedelta(hours=22, minutes=10)) == "pts_t22"
+    assert snapshots.intraday_kind(tip, tip - timedelta(hours=2)) == "pts_t02"
+    assert snapshots.intraday_kind(tip, tip - timedelta(hours=1, minutes=59)) is None  # close
 
 
 def test_capture_skips_markets_on_open_only_runs(tmp_path, monkeypatch, capsys):

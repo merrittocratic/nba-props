@@ -27,10 +27,17 @@ MARKETS = (
 )
 # us_dfs carries Underdog, PrizePicks, Pick6 and Dabble lines (prices are indicative only)
 REGIONS = ("us", "us_dfs")
+# Intraday snapshots (snapshots.intraday_kind): points at US sportsbooks only, 1 credit.
+INTRADAY_MARKETS = ("player_points",)
+INTRADAY_REGIONS = ("us",)
 
 
 def worst_case_cost() -> int:
     return len(MARKETS) * len(REGIONS)
+
+
+def intraday_cost() -> int:
+    return len(INTRADAY_MARKETS) * len(INTRADAY_REGIONS)
 
 
 def iso_z(dt: datetime) -> str:
@@ -84,44 +91,57 @@ def run(
         kind = snapshots.due_kind(snapshots.parse_tip(ev["commence_time"]), now)
         if kind and (ev["id"], kind) not in taken:
             due.append((ev, kind))
-    worst = worst_case_cost()
+    # Intraday points-only snapshots, once the game's props are up (open taken).
+    # Queued after the full snapshots so the daily cap can never starve a close.
+    intraday = []
+    for ev in events:
+        kind = snapshots.intraday_kind(snapshots.parse_tip(ev["commence_time"]), now)
+        if kind and (ev["id"], "open") in taken and (ev["id"], kind) not in taken:
+            intraday.append((ev, kind))
+    worst, worst_intra = worst_case_cost(), intraday_cost()
+    run_worst = worst * len(due) + worst_intra * len(intraday)
     plan = [
         f"odds_api: {len(events)} events tipping off {window[0]} .. {window[1]}, "
-        f"{len(due)} with a snapshot due",
-        f"odds_api: markets={','.join(MARKETS)} regions={','.join(REGIONS)}",
-        f"odds_api: up to {worst} credits per snapshot, up to {worst * len(due)} for this run",
+        f"{len(due)} with a snapshot due, {len(intraday)} with an intraday snapshot due",
+        f"odds_api: markets={','.join(MARKETS)} regions={','.join(REGIONS)}; "
+        f"intraday markets={','.join(INTRADAY_MARKETS)} regions={','.join(INTRADAY_REGIONS)}",
+        f"odds_api: up to {worst} credits per snapshot, {worst_intra} per intraday, "
+        f"up to {run_worst} for this run",
         f"odds_api: spent today {budget.spent_today}/{budget.daily_cap}, "
         f"remaining on plan {budget.remaining} (floor {budget.monthly_floor})",
     ]
     captured = set()
-    for ev, kind in due:
+    jobs = [(ev, kind, MARKETS, REGIONS) for ev, kind in due]
+    jobs += [(ev, kind, INTRADAY_MARKETS, INTRADAY_REGIONS) for ev, kind in intraday]
+    for ev, kind, markets, regions in jobs:
+        cost_max = len(markets) * len(regions)
         label = f"{ev['away_team']} @ {ev['home_team']} {ev['commence_time']}"
         if rec.dry_run:
-            plan.append(f"  would fetch [{kind}] {label} (up to {worst} credits)")
+            plan.append(f"  would fetch [{kind}] {label} (up to {cost_max} credits)")
             captured.add(kind)
             continue
         resp = rec.fetch(
             SOURCE,
             f"GET {snapshots.label(ev['id'], kind)} ({label})",
-            lambda ev=ev: rec.http.get(
+            lambda ev=ev, markets=markets, regions=regions: rec.http.get(
                 f"{BASE}/events/{ev['id']}/odds",
                 [
                     ("apiKey", api_key),
-                    ("regions", ",".join(REGIONS)),
-                    ("markets", ",".join(MARKETS)),
+                    ("regions", ",".join(regions)),
+                    ("markets", ",".join(markets)),
                     ("oddsFormat", "american"),
                     ("dateFormat", "iso"),
                 ],
             ),
             count_rows=count_outcomes,
             cost=lambda r: header_int(r, "x-requests-last") or 0,
-            precheck=lambda: budget.check(worst),
+            precheck=lambda cost_max=cost_max: budget.check(cost_max),
             on_response=on_response,
             keep=(lambda r: not r.ok or count_outcomes(r.json()) > 0) if kind == "open" else None,
         )
         if resp is not None and resp.ok and (kind != "open" or count_outcomes(resp.json())):
             captured.add(kind)
     if rec.dry_run:
-        blocked = budget.check(worst * len(due))
+        blocked = budget.check(run_worst)
         plan.append(f"odds_api: budget check for full run: {blocked or 'ok'}")
     return plan, captured

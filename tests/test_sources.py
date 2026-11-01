@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from conftest import FAKE_KEY, FakeHttp, fixture_bytes, fixture_json
 
 from nbaprops import kalshi, odds_api, polymarket
-from nbaprops.budget import CreditBudget
+from nbaprops.budget import DAILY_CREDIT_CAP, MONTHLY_FLOOR, CreditBudget
 from nbaprops.http import Response
 
 ODDS_HEADERS = {"x-requests-last": "10", "x-requests-remaining": "19000"}
@@ -64,7 +64,7 @@ def test_odds_api_key_never_written(tmp_path, make_recorder, clock, caplog):
 
 def test_odds_api_stops_at_daily_cap(tmp_path, make_recorder, clock):
     http = odds_http()
-    budget = CreditBudget(spent_today=580)  # room for one event (worst case 12, billed 10)
+    budget = CreditBudget(spent_today=DAILY_CREDIT_CAP - 20)  # room for one (worst 12, billed 10)
     odds_api.run(make_recorder(http), FAKE_KEY, budget, clock(), 24)
     rows = manifest_rows(tmp_path)
     assert [r["status"][:8] for r in rows] == ["200", "200", "skipped:"]
@@ -76,7 +76,11 @@ def test_odds_api_stops_at_monthly_floor(tmp_path, make_recorder, clock):
         [
             (
                 "/events",
-                Response(200, fixture_bytes("odds_events.json"), {"x-requests-remaining": "3005"}),
+                Response(
+                    200,
+                    fixture_bytes("odds_events.json"),
+                    {"x-requests-remaining": str(MONTHLY_FLOOR + 5)},
+                ),
             )
         ]
     )

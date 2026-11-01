@@ -30,6 +30,13 @@ each game's snapshots follow its own tip-off. An `open` check finds nothing unti
 are posted. It costs 0 credits and isn't saved. Each snapshot costs up to 12 credits, so
 a 15-game night costs up to 540.
 
+**Intraday snapshots.** Once a game's `open` is in the manifest, the capture also takes a
+points-only snapshot (`player_points`, region `us`, 1 credit) every 2 hours until 2 hours
+before tip-off, labeled `pts_t28` .. `pts_t02` by the hours left. They follow how one
+book's line and price move together through the day (EDA catalog entry A5). That's about
+10 a game, roughly 2,100 credits a month in season. They queue after the full
+snapshots in each run, so the daily cap can't starve a `close`.
+
 Kalshi and Polymarket are pulled only on runs that took a `morning` or `close`
 snapshot (about 30 MB per pull, mostly Polymarket), not on `open`-only runs.
 
@@ -37,9 +44,11 @@ snapshot (about 30 MB per pull, mostly Polymarket), not on `open`-only runs.
 
 Before every Odds API request the run checks:
 
-- a daily cap of **600 credits**, enough for three snapshots on a 15-game night (today's
-  spend is summed from `data/manifest.csv` plus each response's `x-requests-last`), and
-- a floor of **3,000 remaining credits** on the plan (from `x-requests-remaining`).
+- a daily cap of **810 credits**: three full snapshots on a 15-game night (540, rounded
+  up to 600) plus up to 14 intraday snapshots per game (today's spend is summed from
+  `data/manifest.csv` plus each response's `x-requests-last`), and
+- a floor of **2,000 remaining credits** on the plan (from `x-requests-remaining`). The
+  live in-game capture uses the same floor.
 
 If a request could cross either limit, the run logs it, writes a `skipped` manifest
 row and stops calling the Odds API. Kalshi and Polymarket are not capped.
@@ -103,7 +112,7 @@ in-game backfill. It follows a game to minute 210, or until two checks in a row 
 90 find no lines. Empty snapshots are saved, since the stop rule reads them from the
 manifest; listings with no game on are not, so idle hours leave nothing. Spend goes under
 `odds_api_live`, with its own daily cap of 800 (about 30 credits a game, roughly 6K a month
-in season), apart from the pregame capture's 600. Install it the same way:
+in season), apart from the pregame capture's 810. Install it the same way:
 
 ```sh
 sed -e "s|__REPO__|$PWD|g" -e "s|__HOME__|$HOME|g" \
