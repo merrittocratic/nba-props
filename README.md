@@ -162,6 +162,26 @@ Use `--start`/`--end` (YYYY-MM-DD) to limit the range. DFS lines (`us_dfs`) appe
 from about the 2024-25 season. The daily cap is this repo's own guard, not an API limit;
 raise it with `--daily-cap` when the whole backfill must finish sooner.
 
+## Intraday backfill
+
+`python -m nbaprops.intraday` pulls the intraday snapshots (see Snapshots) for past games:
+`player_points`, region `us`, every 2 hours from 30 hours before tip-off to 2 hours before,
+labeled `pts_t28` .. `pts_t02` like the live capture. Each slot is fetched 5 minutes after
+it opens, as the 15-minute capture would. Snapshots with no lines (props not posted yet)
+and the 404 before an event is listed cost nothing and aren't saved. Each snapshot with
+lines costs 10 credits, about 10 a game.
+
+Spend goes under the manifest source `odds_api_intraday_hist`, with its own `--daily-cap`
+(default 1,000,000) and the same `--floor` (50,000). Six games run at once (`--workers`).
+It's resumable. A test day (2025-01-15, 11 games) saved 104 snapshots for 1,041 credits in
+32 seconds and 1.1 MB, so all ~4,080 games since May 2023 are roughly 3.5 hours, 390K
+credits and 400 MB. Run it while the 5M plan lasts (through 2026-11-25).
+
+```sh
+caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.intraday \
+    >> data/logs/intraday.log 2>&1
+```
+
 ## In-game backfill
 
 `python -m nbaprops.inplay` pulls historical in-game `player_points` lines (region `us`):

@@ -26,12 +26,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from nbaprops import backfill, gamelines, inplay, live, odds_api, outcomes
+from nbaprops import backfill, gamelines, inplay, intraday, live, odds_api, outcomes
 from nbaprops.snapshots import ET
 from nbaprops.storage import Manifest
 
-ODDS_SOURCES = (odds_api.SOURCE, backfill.SOURCE, inplay.SOURCE, live.SOURCE)
-HISTORICAL_SOURCES = (backfill.SOURCE, inplay.SOURCE)
+ODDS_SOURCES = (odds_api.SOURCE, backfill.SOURCE, inplay.SOURCE, intraday.SOURCE, live.SOURCE)
+HISTORICAL_SOURCES = (backfill.SOURCE, inplay.SOURCE, intraday.SOURCE)
 _KIND = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")
 _GAME_LINES = re.compile(r"GET historical /odds \[(\w+)\]")
 
