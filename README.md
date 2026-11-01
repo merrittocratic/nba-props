@@ -177,6 +177,25 @@ caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.inpla
 The laptop run writes to `data/inplay/`, not `data/mini/`, because each pull from the Mini
 replaces `data/mini/manifest.csv`.
 
+## Game-lines backfill
+
+`python -m nbaprops.gamelines` pulls historical moneyline, spread and total (`h2h`,
+`spreads`, `totals`, region `us`) for pace, game-script and blowout features. One
+historical `/odds` call returns every game on the board at that moment, so each day takes
+a few slate-wide snapshots: `morning` (11:00 ET) and a `close` one hour before each
+distinct tip-off time. Each costs 30 credits, plus 1 for the day's listing. A test day
+(11 games, 8 snapshots) cost 241 credits, so the whole range since May 2023 is roughly
+150-220K. Spend goes under `odds_api_gamelines` (default cap 200,000 a day, floor 50,000),
+and it's resumable.
+
+```sh
+caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.gamelines \
+    --data-dir data/gamelines >> data/gamelines/gamelines.log 2>&1
+```
+
+ESPN summaries carry DraftKings spread and total in `pickcenter`, but only from 2025-26 on,
+so this backfill is the source for earlier seasons.
+
 ## Outcomes (actual results)
 
 `python -m nbaprops.outcomes` pulls ESPN's public site API: no key, plain requests, a
@@ -201,6 +220,12 @@ ESPN's API is unofficial and could change. Two cautions:
 | `box_scores` | player per game, including DNPs |
 | `prop_lines` | snapshot x book x market x player x line, over and under prices side by side |
 | `prop_outcomes` | `prop_lines` plus the actual stat, `margin` (actual - line), `result` |
+| `game_lines` | slate snapshot x game x book: home spread and prices, total and over/under prices, moneylines, `minutes_before_tip`, `espn_game_id` |
+
+`--data-dir` can be repeated to combine data dirs, e.g.
+`--data-dir data/mini --data-dir data/gamelines --out-dir data/tidy_mini`. A slate snapshot
+is one game's close and an earlier look at the others, so pick each game's close by
+`minutes_before_tip`, not by `kind`.
 
 Joins:
 - Odds API events match ESPN games by teams and tip-off within 6 hours (ESPN lists

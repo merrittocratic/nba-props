@@ -26,13 +26,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from nbaprops import backfill, inplay, live, odds_api, outcomes
+from nbaprops import backfill, gamelines, inplay, live, odds_api, outcomes
 from nbaprops.snapshots import ET
 from nbaprops.storage import Manifest
 
 ODDS_SOURCES = (odds_api.SOURCE, backfill.SOURCE, inplay.SOURCE, live.SOURCE)
 HISTORICAL_SOURCES = (backfill.SOURCE, inplay.SOURCE)
 _KIND = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")
+_GAME_LINES = re.compile(r"GET historical /odds \[(\w+)\]")
 
 # ESPN display names that differ from the Odds API's
 TEAM_ALIASES = {"LA Clippers": "Los Angeles Clippers"}
@@ -242,6 +243,73 @@ def load_box_scores(manifest_rows: list[dict]) -> tuple[pd.DataFrame, pd.DataFra
     return games_df, box_df
 
 
+GAME_LINE_COLUMNS = [
+    "kind",
+    "snapshot_ts",
+    "event_id",
+    "commence_time",
+    "home_team",
+    "away_team",
+    "book",
+    "home_spread",
+    "home_spread_price",
+    "away_spread_price",
+    "total",
+    "over_price",
+    "under_price",
+    "home_ml",
+    "away_ml",
+]
+
+
+def parse_game_lines(body: dict, kind: str) -> list[dict]:
+    """One slate-wide historical /odds snapshot -> a row per game x book."""
+    rows = []
+    for ev in body.get("data") or []:
+        home, away = ev.get("home_team"), ev.get("away_team")
+        for book in ev.get("bookmakers", []):
+            row = dict.fromkeys(GAME_LINE_COLUMNS) | {
+                "kind": kind,
+                "snapshot_ts": body.get("timestamp"),
+                "event_id": ev.get("id"),
+                "commence_time": ev.get("commence_time"),
+                "home_team": home,
+                "away_team": away,
+                "book": book["key"],
+            }
+            for market in book.get("markets", []):
+                for o in market.get("outcomes", []):
+                    name, price, point = o.get("name"), o.get("price"), o.get("point")
+                    if market["key"] == "h2h":
+                        row["home_ml" if name == home else "away_ml"] = price
+                    elif market["key"] == "spreads" and name == home:
+                        row["home_spread"], row["home_spread_price"] = point, price
+                    elif market["key"] == "spreads":
+                        row["away_spread_price"] = price
+                    elif market["key"] == "totals":
+                        row["total"] = point
+                        row["over_price" if name == "Over" else "under_price"] = price
+            rows.append(row)
+    return rows
+
+
+def load_game_lines(manifest_rows: list[dict]) -> pd.DataFrame:
+    rows = []
+    for row in manifest_rows:
+        if row["source"] != gamelines.SOURCE or row["status"] != "200" or not row.get("path"):
+            continue
+        if m := _GAME_LINES.match(row["request"]):
+            rows += parse_game_lines(json.loads(Path(row["path"]).read_bytes()), m.group(1))
+    df = pd.DataFrame(rows, columns=GAME_LINE_COLUMNS)
+    # some responses list a game twice; the copies are identical
+    df = df.drop_duplicates(["snapshot_ts", "event_id", "book"], keep="last")
+    for col in ("snapshot_ts", "commence_time"):
+        df[col] = pd.to_datetime(df[col], utc=True, format="ISO8601")
+    # a slate snapshot is one game's close and an earlier look at the others
+    df["minutes_before_tip"] = (df["commence_time"] - df["snapshot_ts"]).dt.total_seconds() / 60
+    return df
+
+
 def map_events(lines: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
     """Odds API event_id -> espn_game_id, by teams and tip-off within MATCH_WINDOW."""
     events = lines[["event_id", "commence_time", "home_team", "away_team"]].drop_duplicates(
@@ -403,14 +471,21 @@ def local_path(data_dir: Path, path: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m nbaprops.tidy", description=__doc__)
-    p.add_argument("--data-dir", default="data", type=Path)
-    p.add_argument("--out-dir", type=Path, help="default: <data-dir>/tidy")
+    p.add_argument(
+        "--data-dir",
+        action="append",
+        type=Path,
+        help="repeat to combine data dirs (e.g. data/mini and data/gamelines); default: data",
+    )
+    p.add_argument("--out-dir", type=Path, help="default: <first data-dir>/tidy")
     args = p.parse_args(argv)
+    data_dirs = args.data_dir or [Path("data")]
     rows = [
-        r | {"path": local_path(args.data_dir, r["path"])} if r.get("path") else r
-        for r in Manifest(args.data_dir).rows()
+        r | {"path": local_path(d, r["path"])} if r.get("path") else r
+        for d in data_dirs
+        for r in Manifest(d).rows()
     ]
-    out_dir = args.out_dir or args.data_dir / "tidy"
+    out_dir = args.out_dir or data_dirs[0] / "tidy"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     games, box = load_box_scores(rows)
@@ -425,10 +500,20 @@ def main(argv: list[str] | None = None) -> int:
     box.to_parquet(out_dir / "box_scores.parquet", index=False)
     lines.to_parquet(out_dir / "prop_lines.parquet", index=False)
     result.to_parquet(out_dir / "prop_outcomes.parquet", index=False)
+    game_lines = load_game_lines(rows)
+    if len(game_lines):
+        game_lines = game_lines.merge(map_events(game_lines, games), on="event_id", how="left")
+        game_lines.to_parquet(out_dir / "game_lines.parquet", index=False)
     print(f"\n=== tidy tables in {out_dir} ===")
     print(f"games: {len(games):,}, box-score rows: {len(box):,}")
     for line in report(lines, event_map, result):
         print(line)
+    if len(game_lines):
+        matched = game_lines["espn_game_id"].notna().mean()
+        print(
+            f"game lines: {len(game_lines):,} rows, {game_lines['event_id'].nunique():,} events, "
+            f"{matched:.1%} matched to an ESPN game"
+        )
     return 0
 
 
