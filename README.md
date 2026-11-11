@@ -182,6 +182,20 @@ caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.intra
     >> data/logs/intraday.log 2>&1
 ```
 
+The full run (finished 2026-11-02) saved 41,136 snapshots for 4,094 games: ~413K credits,
+722 MB.
+
+`--near-tip` fills the last 2 hours, which the 2-hourly slots leave to `close`: every 15
+minutes from 2 hours to 15 minutes before tip-off, labeled `pts_m120` .. `pts_m015` by
+minutes left. That's when injury and lineup news lands. It goes under its own source,
+`odds_api_neartip_hist`, and costs about 80 credits a game (~330K for every game since
+May 2023).
+
+```sh
+caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.intraday \
+    --near-tip >> data/logs/neartip.log 2>&1
+```
+
 ## In-game backfill
 
 `python -m nbaprops.inplay` pulls historical in-game `player_points` lines (region `us`):

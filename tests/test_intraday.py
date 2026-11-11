@@ -113,3 +113,26 @@ def test_tidy_includes_intraday_snapshots(tmp_path, monkeypatch):
     lines = pd.read_parquet(tmp_path / "tidy" / "prop_lines.parquet")
     assert set(lines.kind.astype(str)) == {"pts_t04", "pts_t02"}
     assert set(lines.source.astype(str)) == {intraday.SOURCE}
+
+
+# --- near-tip ---------------------------------------------------------------
+
+
+def test_near_tip_slots_every_15_minutes_in_last_two_hours():
+    tip = datetime(2025, 1, 16, 0, 10, tzinfo=UTC)
+    got = intraday.near_tip_slots(tip)
+    assert [k for k, _ in got] == [f"pts_m{m:03d}" for m in range(120, 0, -15)]
+    assert got[0][1] == tip - timedelta(hours=2) and got[-1][1] == tip - timedelta(minutes=15)
+
+
+def test_near_tip_run_uses_its_own_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("ODDS_API_KEY", FAKE_KEY)
+    tip = PregameFake(datetime(2025, 1, 1, tzinfo=UTC)).tip
+    http = PregameFake(posted_from=tip - timedelta(hours=20))
+    assert run(tmp_path, http, "--near-tip") == 0
+    m = Manifest(tmp_path)
+    near = sorted(k for _, k in snapshots.done(m, intraday.NEAR_SOURCE))
+    assert near == sorted(f"pts_m{x:03d}" for x in range(120, 0, -15))
+    assert snapshots.done(m, intraday.SOURCE) == set()
+    run(tmp_path, http, "--near-tip")  # resume: nothing refetched
+    assert len(http.odds_calls()) == 8

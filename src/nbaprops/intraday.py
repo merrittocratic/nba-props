@@ -10,6 +10,11 @@ Each snapshot with lines costs 10 credits; one with no lines (props not posted y
 the event not yet listed) costs nothing and isn't saved. About 10 per game have lines,
 so ~100 credits a game, ~400K for the ~4,000 games since May 2023.
 
+--near-tip takes the last 2 hours instead, which the 2-hourly slots leave to the close
+snapshot: every 15 minutes from 2 hours to 15 minutes before tip-off (kinds pts_m120 ..
+pts_m015, the minutes left), when injury and lineup news lands. Those go under their
+own source, odds_api_neartip_hist. 8 slots, ~80 credits a game.
+
 Several games run at once (--workers). Spend is tracked under its own manifest source
 with its own cap and the same floor as the other backfills. Resumable: snapshots
 already saved are skipped (empty ones are re-checked, which is free). A dry run lists
@@ -38,6 +43,8 @@ from nbaprops.storage import Manifest, RawStore
 log = logging.getLogger("nbaprops")
 
 SOURCE = "odds_api_intraday_hist"
+NEAR_SOURCE = "odds_api_neartip_hist"
+NEAR_MINUTES = tuple(range(120, 0, -15))  # 120, 105, ..., 15
 COST = 10 * len(INTRADAY_MARKETS) * len(INTRADAY_REGIONS)
 STEP = snapshots.INTRADAY_STEP
 MAX_FAILURES = 50
@@ -58,10 +65,18 @@ def slots(tip: datetime) -> list[tuple[str, datetime]]:
     return out
 
 
+def near_tip_slots(tip: datetime) -> list[tuple[str, datetime]]:
+    """(kind, fetch time) every 15 minutes in the last 2 hours, earliest first."""
+    return [(f"pts_m{m:03d}", tip - timedelta(minutes=m)) for m in NEAR_MINUTES]
+
+
 class Intraday(Backfill):
     source = SOURCE
 
-    def __init__(self, rec: Recorder, api_key: str, budget: CreditBudget):
+    def __init__(self, rec: Recorder, api_key: str, budget: CreditBudget, near_tip=False):
+        if near_tip:  # before super().__init__, which reads what's taken for self.source
+            self.source = NEAR_SOURCE
+        self.slots = near_tip_slots if near_tip else slots
         super().__init__(rec, api_key, budget)
         self.taken_lock = threading.Lock()
 
@@ -74,14 +89,14 @@ class Intraday(Backfill):
             return self._run_event(ev)
         except Exception as e:  # one bad game must not stop the other workers
             self.rec.failures += 1
-            log.exception("[%s] %s crashed: %s", SOURCE, ev.get("id"), self.rec.clean(str(e)))
+            log.exception("[%s] %s crashed: %s", self.source, ev.get("id"), self.rec.clean(str(e)))
             return 0
 
     def _run_event(self, ev: dict) -> int:
         tip = snapshots.parse_tip(ev["commence_time"])
         label = f"{ev['away_team']} @ {ev['home_team']} {ev['commence_time']}"
         saved = 0
-        for k, at in slots(tip):
+        for k, at in self.slots(tip):
             if self.stopped or self.rec.failures >= MAX_FAILURES:
                 return saved
             with self.taken_lock:
@@ -117,6 +132,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--end", type=date.fromisoformat, default=yesterday)
     p.add_argument("--workers", default=6, type=int, help="games fetched at once")
     p.add_argument("--dry-run", action="store_true", help="listing calls only; write nothing")
+    p.add_argument(
+        "--near-tip", action="store_true", help="every 15 min in the last 2 hours instead"
+    )
     p.add_argument("--data-dir", default="data", type=Path)
     p.add_argument("--daily-cap", default=1_000_000, type=int, help="credits per UTC day")
     p.add_argument("--floor", default=50_000, type=int, help="stop above this many plan credits")
@@ -139,12 +157,13 @@ def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) 
         clock=clock,
         redact=(api_key,),
     )
+    source = NEAR_SOURCE if args.near_tip else SOURCE
     budget = CreditBudget(
-        spent_today=manifest.credits_spent_on(SOURCE, clock().date()),
+        spent_today=manifest.credits_spent_on(source, clock().date()),
         daily_cap=args.daily_cap,
         monthly_floor=args.floor,
     )
-    bf = Intraday(rec, api_key, budget)
+    bf = Intraday(rec, api_key, budget, near_tip=args.near_tip)
 
     days = games = 0
     oldest = None
@@ -163,18 +182,19 @@ def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) 
         saved = sum(f.result() for f in futures)
 
     header = "DRY RUN - nothing written" if args.dry_run else f"manifest: {manifest.path}"
-    print(f"\n=== intraday backfill {header} ===")
+    print(f"\n=== {'near-tip' if args.near_tip else 'intraday'} backfill {header} ===")
     print(f"days listed: {days} ({args.end} back to {oldest})")
     print(f"games: {games}")
     if args.dry_run:
-        n_slots = len(slots(utcnow()))
+        n_slots = len(bf.slots(utcnow()))
+        typical = n_slots if args.near_tip else 10
         print(
-            f"planned spend: about {games * 10 * COST:,} credits "
+            f"planned spend: about {games * typical * COST:,} credits "
             f"(at most {games * n_slots * COST:,})"
         )
     else:
         print(f"snapshots saved this run: {saved}")
-    print(f"spent today (intraday): {budget.spent_today}, remaining on plan: {budget.remaining}")
+    print(f"spent today ({source}): {budget.spent_today}, remaining on plan: {budget.remaining}")
     if bf.stopped:
         print(f"stopped: {bf.stopped}")
     print(f"failures: {rec.failures}")
