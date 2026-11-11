@@ -162,6 +162,19 @@ Use `--start`/`--end` (YYYY-MM-DD) to limit the range. DFS lines (`us_dfs`) appe
 from about the 2024-25 season. The daily cap is this repo's own guard, not an API limit;
 raise it with `--daily-cap` when the whole backfill must finish sooner.
 
+`--markets`, `--regions` and `--source` pull other markets at the same three times, each
+source with its own resume state and cap. `--alternates` is the shortcut for the
+alternate-line ladders (`player_{points,rebounds,assists,threes}_alternate`, region `us`,
+source `odds_api_alt_hist`), which start on 2023-12-08 (1-2 books that month, 5-6 from
+January 2024). Most books post ladder Over prices only (FanDuel has both sides) and post
+them after the main lines, so `open` is often empty. A test day (2025-01-15, 11 games)
+cost 1,761 credits, so every game since December 2023 is ~615K.
+
+```sh
+caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.backfill \
+    --alternates >> data/logs/alt.log 2>&1
+```
+
 ## Intraday backfill
 
 `python -m nbaprops.intraday` pulls the intraday snapshots (see Snapshots) for past games:

@@ -9,6 +9,12 @@ exist, 0 when not); each full snapshot costs up to 10 x markets x regions = 120.
 Spend is tracked under its own manifest source, so it never counts against the live
 capture's daily cap, and it stops before the plan drops below --floor.
 
+--markets/--regions/--source pull other markets at the same three times, e.g. the
+alternate-line ladders (ALT_MARKETS, from 2023-12-08) under odds_api_alt_hist. Each
+source keeps its own resume state and daily cap; open is still found with the
+player_points probe, so a market posted later than the main lines can come back empty
+at open (free, and saved as empty).
+
 Resumable: snapshots already in the manifest are skipped. A dry run makes only the
 listing calls (1 credit per day), writes nothing, and prints the planned spend.
 Reads the key from ODDS_API_KEY only.
@@ -38,6 +44,14 @@ FIRST_PROPS_DAY = date(2023, 5, 3)  # earliest historical player props
 LISTING_HOUR = 15  # 15:00 UTC, before any NBA tip-off that day
 GRID = timedelta(minutes=15)
 FULL_COST = 10 * len(MARKETS) * len(REGIONS)
+ALT_SOURCE = "odds_api_alt_hist"
+ALT_MARKETS = (
+    "player_points_alternate",
+    "player_rebounds_alternate",
+    "player_assists_alternate",
+    "player_threes_alternate",
+)
+FIRST_ALT_DAY = date(2023, 12, 8)  # first alternate lines in the historical feed
 PROBE_COST = 10
 MAX_FAILURES = 20
 
@@ -48,10 +62,24 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--start", type=date.fromisoformat, default=FIRST_PROPS_DAY)
     p.add_argument("--end", type=date.fromisoformat, default=yesterday)
     p.add_argument("--dry-run", action="store_true", help="listing calls only; write nothing")
+    p.add_argument("--markets", default=",".join(MARKETS), help="comma-separated")
+    p.add_argument("--regions", default=",".join(REGIONS), help="comma-separated")
+    p.add_argument("--source", default=SOURCE, help="manifest source for spend and resume")
+    p.add_argument(
+        "--alternates",
+        action="store_true",
+        help=f"shortcut: alternate ladders, region us, source {ALT_SOURCE}, from {FIRST_ALT_DAY}",
+    )
     p.add_argument("--data-dir", default="data", type=Path)
     p.add_argument("--daily-cap", default=500_000, type=int, help="backfill credits per UTC day")
     p.add_argument("--floor", default=50_000, type=int, help="stop above this many plan credits")
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    if args.alternates:
+        args.markets, args.regions, args.source = ",".join(ALT_MARKETS), "us", ALT_SOURCE
+        args.start = max(args.start, FIRST_ALT_DAY)
+    args.markets = tuple(m for m in args.markets.split(",") if m)
+    args.regions = tuple(r for r in args.regions.split(",") if r)
+    return args
 
 
 def snapshot_data(resp: Response | None) -> dict:
@@ -63,7 +91,19 @@ def snapshot_data(resp: Response | None) -> dict:
 class Backfill:
     source = SOURCE
 
-    def __init__(self, rec: Recorder, api_key: str, budget: CreditBudget):
+    def __init__(
+        self,
+        rec: Recorder,
+        api_key: str,
+        budget: CreditBudget,
+        markets: tuple[str, ...] = MARKETS,
+        regions: tuple[str, ...] = REGIONS,
+        source: str | None = None,
+    ):
+        if source:  # before reading what's taken for self.source
+            self.source = source
+        self.markets, self.regions = markets, regions
+        self.full_cost = 10 * len(markets) * len(regions)
         self.rec = rec
         self.api_key = api_key
         self.budget = budget
@@ -144,11 +184,11 @@ class Backfill:
             f"/events/{ev['id']}/odds",
             [
                 ("date", iso_z(at)),
-                ("regions", ",".join(REGIONS)),
-                ("markets", ",".join(MARKETS)),
+                ("regions", ",".join(self.regions)),
+                ("markets", ",".join(self.markets)),
                 ("oddsFormat", "american"),
             ],
-            FULL_COST,
+            self.full_cost,
         )
         if resp is not None and resp.ok:
             self.taken.add((ev["id"], kind))
@@ -158,7 +198,7 @@ class Backfill:
         for kind in snapshots.KINDS:
             if (ev["id"], kind) in self.taken or not snapshots.window(kind, tip):
                 continue
-            if reason := self.budget.check(FULL_COST + PROBE_COST * 8):
+            if reason := self.budget.check(self.full_cost + PROBE_COST * 8):
                 self.stopped = reason
                 return
             if kind == "open":
@@ -190,11 +230,11 @@ def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) 
         redact=(api_key,),
     )
     budget = CreditBudget(
-        spent_today=manifest.credits_spent_on(SOURCE, clock().date()),
+        spent_today=manifest.credits_spent_on(args.source, clock().date()),
         daily_cap=args.daily_cap,
         monthly_floor=args.floor,
     )
-    bf = Backfill(rec, api_key, budget)
+    bf = Backfill(rec, api_key, budget, args.markets, args.regions, args.source)
 
     days = events = todo = 0
     day, oldest = args.end, None
@@ -224,8 +264,10 @@ def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) 
     print(f"days listed: {days} ({args.end} back to {oldest})")
     print(f"games: {events}, snapshots not yet taken: {todo}")
     if args.dry_run:
-        print(f"planned spend: up to {todo * FULL_COST + events * 8 * PROBE_COST} credits")
-    print(f"spent today (backfill): {budget.spent_today}, remaining on plan: {budget.remaining}")
+        print(f"planned spend: up to {todo * bf.full_cost + events * 8 * PROBE_COST} credits")
+    print(
+        f"spent today ({args.source}): {budget.spent_today}, remaining on plan: {budget.remaining}"
+    )
     if bf.stopped:
         print(f"stopped: {bf.stopped}")
     print(f"failures: {rec.failures}")

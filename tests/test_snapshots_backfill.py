@@ -210,3 +210,21 @@ def test_backfill_dry_run_lists_only(tmp_path, monkeypatch, capsys):
     assert all(u.endswith("/events") for u, _ in http.calls)
     assert list(tmp_path.iterdir()) == []
     assert "snapshots not yet taken: 3" in capsys.readouterr().out
+
+
+def test_backfill_alternates_use_own_source_and_markets(tmp_path, monkeypatch):
+    monkeypatch.setenv("ODDS_API_KEY", FAKE_KEY)
+    run_backfill(tmp_path, HistFake(posted_from=at(2025, 1, 15, 3, 7)))  # main lines first
+    http = HistFake(posted_from=at(2025, 1, 15, 3, 7))
+    assert run_backfill(tmp_path, http, "--alternates") == 0  # not skipped as already taken
+    fetches = [p for u, p in http.calls if u.endswith("/odds") and p["markets"] != "player_points"]
+    assert len(fetches) == 3
+    for p in fetches:
+        assert p["markets"] == ",".join(backfill.ALT_MARKETS) and p["regions"] == "us"
+    m = Manifest(tmp_path)
+    assert {k for _, k in snapshots.done(m, backfill.ALT_SOURCE)} == set(snapshots.KINDS)
+
+
+def test_alternates_start_no_earlier_than_first_alt_day():
+    args = backfill.parse_args(["--alternates", "--start", "2023-05-03", "--end", "2024-01-01"])
+    assert args.start == backfill.FIRST_ALT_DAY and args.source == backfill.ALT_SOURCE

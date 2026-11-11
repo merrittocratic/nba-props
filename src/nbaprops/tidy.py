@@ -36,9 +36,16 @@ ODDS_SOURCES = (
     inplay.SOURCE,
     intraday.SOURCE,
     intraday.NEAR_SOURCE,
+    backfill.ALT_SOURCE,
     live.SOURCE,
 )
-HISTORICAL_SOURCES = (backfill.SOURCE, inplay.SOURCE, intraday.SOURCE, intraday.NEAR_SOURCE)
+HISTORICAL_SOURCES = (
+    backfill.SOURCE,
+    inplay.SOURCE,
+    intraday.SOURCE,
+    intraday.NEAR_SOURCE,
+    backfill.ALT_SOURCE,
+)
 _KIND = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")
 _GAME_LINES = re.compile(r"GET historical /odds \[(\w+)\]")
 
@@ -63,6 +70,11 @@ MARKET_STATS = {
     "player_threes": ["fg3m"],
     "player_points_rebounds_assists": ["pts", "reb", "ast"],
     "player_points_rebounds": ["pts", "reb"],
+}
+# Alternate ladders settle on the same stat as their main market.
+MARKET_STATS |= {
+    f"{m}_alternate": MARKET_STATS[m]
+    for m in ("player_points", "player_rebounds", "player_assists", "player_threes")
 }
 MATCH_WINDOW = timedelta(hours=6)  # ESPN lists scheduled tip, the Odds API actual
 
