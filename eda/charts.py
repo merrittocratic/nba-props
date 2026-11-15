@@ -21,7 +21,7 @@ TEXT = "#0b0b0b"
 MUTED = "#52514e"
 
 # DFS sites: lines are real, prices are placeholders (-137 both sides).
-DFS = {"prizepicks", "underdog", "pick6", "betr_us_dfs"}
+DFS = {"prizepicks", "underdog", "pick6", "betr_us_dfs", "dabble_us_dfs"}
 MAIN_NOTE = (
     "Main line = the book's line priced nearest 50/50; no-vig probability = over price"
     " rescaled so over + under = 100%."

@@ -81,8 +81,11 @@ number quoted in A1-A3 below changed.
   2023 playoffs (35 games) and "2027" is the first 10 days of the 2026-27 regular season
   (2026-10-20 to 10-29, 71 games), so ignore their extremes.
 - **Caveats:** the rows are book-lines, not independent player-games, so the CIs are too
-  narrow. A ~1.5-point lean under is still smaller than the ~4.5% vig, so on its own it
-  isn't a bet.
+  narrow. A ~1.5-point lean under is smaller than the vig, so on its own it
+  isn't a bet. Measured 2026-11-15: sportsbook over and under implied probabilities sum to
+  106.8% at the close in every market (FanDuel 106.0%, Caesars 107.8%; typical prices -115
+  / -115 or -110 / -120), so a side has to beat its no-vig price by about 3.4 points to
+  break even. An earlier version of this entry said "~4.5% vig", which was too low.
 - **Decision:** keep line level x market as a model input (or apply a calibration layer
   after the model). The threes 3.5+ under is worth a closer look once B1 (3PA share) is
   built.
@@ -357,12 +360,190 @@ number quoted in A1-A3 below changed.
 |---|---|---|---|---|
 | B1 | 3PA share of FGA (season to date) | Three-heavy scorers have wider outcome spread | No mean shift; larger variance, so ladder/alt lines mispriced | not started |
 | B2 | FT rate (FTA/FGA) | Free throws are steady, self-created points | Lower variance of points margin | not started |
-| B3 | Minutes volatility (rolling sd) | Unstable roles make lines less reliable | Wider margin spread; under lean for bench players | not started |
-| B4 | Teammate out (top-usage teammate DNP) | Usage moves to whoever is left | Positive margin if lines adjust late or too little | not started |
-| B5 | Spread / blowout risk | Big favourites' starters sit late | Under lean for starters when abs(spread) is large | not started |
+| B3 | Minutes level, volatility, trend (previous 10 games) | Unstable roles make lines less reliable | Wider margin spread; under lean for bench players | **done 2026-11-15, see B3 below** |
+| B4 | Teammate out (top-usage teammate DNP) | Usage moves to whoever is left | Positive margin if lines adjust late or too little | partly: minutes side covered in B9 (hindsight on absences adds little); usage shift not tested |
+| B5 | Spread / blowout risk | Big favourites' starters sit late | Under lean for starters when abs(spread) is large | partly: enters the B9 projection (blowout risk costs a 34-minute player about 1 minute per 10 points of spread); not tested against margin directly |
 | B6 | Game total | Higher total, more possessions | Mostly priced in; little left vs margin | not started |
-| B7 | Rest / back-to-back | Tired legs, rest days for stars | Small under lean on the second night | not started |
-| B8 | Recent form vs line (last 5 minus line) | Books overreact or underreact to hot streaks | Unknown; test both directions | not started |
+| B7 | Rest / back-to-back | Tired legs, rest days for stars | Small under lean on the second night | partly: enters the B9 projection (long rest -1.2 minutes); not tested against margin directly |
+| B8 | Recent form vs line (last 5 minus line) | Books overreact or underreact to hot streaks | Unknown; test both directions | **done 2026-11-15, see B8 below** |
+
+### B3. Minutes: level, volatility and trend
+- **Script:** `eda/04_minutes_features.py`. Regular season, close snapshot, all six markets.
+- **Definitions (all from the player's previous 10 games played, at least 5, never the
+  game itself; games he sat out are skipped; seasons are not separated):**
+  - *Level:* mean minutes. Groups: under 18, 18 to <24, 24 to <30, 30 to <34, 34+.
+  - *Volatility:* standard deviation of minutes. Groups: under 3, 3 to <5, 5 to <7, 7 to
+    <9, 9+.
+  - *Trend:* mean of the previous 3 games minus the mean of the previous 10. Groups: down
+    4+, down 2 to 4, within 2, up 2 to 4, up 4+.
+  - *Gap:* over rate minus mean no-vig over probability, one row per player-game-market
+    (mean over its books, pushes excluded). 291K player-game-markets.
+- **Expected (written before plotting):** volatility widens the spread of results and adds
+  a 1-2 point under lean at the top; trend is mostly priced in, with slight under-reaction
+  (rising minutes, overs do a little better); low-minute players lean under most (about
+  -4.7 under 18 minutes, from the A6 check).
+- **Figures:** `b3_level_gap.html`, `b3_volatility_gap.html`, `b3_trend_gap.html`,
+  `b3_volatility_spread.html`
+- **Observed (2026-11-15):**
+  - *Level, opposite of expected.* The under lean is largest for the heaviest-minute
+    players, not the lightest. Points: -1.2 (under 18), -0.6, -0.4, -1.5, -2.8 (34+, se
+    0.6). Pts+Reb (-3.3), Pts+Reb+Ast (-2.8) and threes (-2.8) show the same at 34+.
+    Rebounds are flat at about -2. Assists run the other way (-1.5 under 18, +0.5 at 34+).
+    The -4.7 from A6 used full-season minutes including the game itself, so it was not a
+    clean number.
+  - Players at 34+ go on to play 1.0 minute less than their level and score 0.29 below
+    the points line on average; players under 18 who have a line play 3.5 minutes more
+    than their level (lines are posted for bench players on nights they are expected to
+    play more) and score 0.43 above it.
+  - *Volatility, weakly as expected.* Spread of the points margin rises with volatility
+    for lines under 20 (10 to <15: sd 5.7 at volatility under 3, 6.5 at 9+) and not for
+    lines of 20+. The gap is U-shaped for points: -2.6 under 3 (these are mostly the
+    34+ players again), -0.8 in the middle, -2.9 at 9+ (se 0.9).
+  - *Trend, opposite of expected.* No under-reaction. After minutes rise the under lean
+    is slightly bigger, not smaller: Pts+Reb -0.5 (down 4+) to -1.9 (up 4+), rebounds
+    +0.1 to -2.8, points -1.2 to -1.7. Differences are 1-3 points at about 2 standard
+    errors each.
+  - Every effect here is 1-3 points of probability, inside the vig.
+- **Caveats:** the six markets share the same player-games, so agreement across markets
+  is not independent confirmation. Level, volatility and trend are correlated (level and
+  volatility -0.21). Groups were fixed before looking, but three features and six markets
+  is many comparisons.
+- **Decision:**
+  - Level: **include**, with a market interaction (scoring markets vs assists).
+  - Volatility: **include** as an input to the spread of the predicted distribution; weak
+    for the mean.
+  - Trend: **include** as a model input, low priority; the direction (overs slightly worse
+    after a rise) should be rechecked once expected minutes is modelled.
+  - Next: these three all describe one thing, expected minutes tonight. Build a minutes
+    projection (level, trend, starter status, rest, teammate absences from B4) and test
+    "projected minutes vs what the line implies" as a single feature.
+
+### B9. Minutes projection, and projected minutes vs what the line implies
+- **Script:** `eda/05_minutes_projection.py`. Regular season. Covers the minutes side of
+  B4 (teammates out), B5 (spread) and B7 (rest) as inputs to one projection.
+- **Model:** ordinary least squares (numpy `lstsq`; no extra dependency, and each
+  coefficient reads as minutes per unit). Fitted on 2023-24 and 2024-25 (49,669
+  player-games), tested on 2025-26 onward (30,067), which the model never saw.
+- **Definitions:**
+  - *Inputs (all known before the game):* mean minutes over the previous 10, 3 and 1
+    games played; share of the previous 10 started; started last game; back-to-back (under
+    1.5 days since his last game); long rest (4+ days); team games missed since he last
+    played; home; absolute closing point spread; rotation minutes the team was missing in
+    its previous game. Spread and missing minutes also enter multiplied by (level - 24)
+    / 10 so their effect can differ by role.
+  - *Rotation minutes missing:* players who played at least 2 of the team's previous 5
+    games and did not play; each counts his average minutes in those games.
+  - *Hindsight version:* adds rotation minutes missing **tonight**, read from tonight's box
+    score. Not usable as a feature; it bounds what an injury report could add.
+  - *Line-implied minutes (points only):* points line / the player's points per minute
+    over his previous 10 games. *Projected minus line-implied* groups: 4+ below, 2 to 4
+    below, within 2, 2 to 4 above, 4+ above.
+  - *Projected minus level* groups: 3+ below, 1 to 3 below, within 1, 1 to 3 above, 3+
+    above (projection minus the 10-game average).
+- **Expected (written before building):** average miss falls from about 4.9 minutes (10-game
+  average) to about 4.5, and to about 4.2 with hindsight on absences; against the price,
+  roughly flat, 1-2 points at the extremes.
+- **Figures:** `b9_projection_accuracy.html`, `b9_proj_vs_level_gap.html`,
+  `b9_proj_vs_line_gap.html`, `b9_hindsight_vs_line_gap.html`
+- **Observed (2026-11-15, test seasons only):**
+  - Accuracy, as expected. Average miss for players with a points line: 5.51 minutes
+    (last game), 4.80 (10-game average), 4.49 (projection), 4.40 (hindsight). Knowing
+    exactly who sat out adds only 0.09, less than I guessed. Calibrated within 0.3 minutes
+    in every projected band except 34+ (projects 35.4, actual 34.6).
+  - Coefficients worth knowing: started last game +2.2 minutes; long rest -1.2; each team
+    game just missed -0.2; a 34-minute player in a game with a 10-point spread -1.0
+    (blowout risk). Level, last 3 and last game carry weights of 0.55, 0.23 and 0.15.
+  - Projected above the player's average: overs fall short more, not less. At 3+ above:
+    points -2.2, Pts+Reb -4.0, Pts+Reb+Ast -3.5, rebounds -4.3, threes -3.8, against about
+    -1.1 within 1 (se 1.3 each). Those players do play the extra minutes (0.8 more than
+    projected), so the market is not wrong about minutes; it prices the extra minutes at
+    the player's usual rate and they are worth less. Same direction as the B3 trend result.
+  - Projected vs line-implied (points): flat at -1.5 to -2.0 in four groups, then +2.5
+    (se 0.9, n 3,339) at 4+ above, where the line implies at least 4 fewer minutes than
+    projected. Those players did play less than projected (-1.7 minutes), so books had a
+    reason to lower the line, and lowered it too far. With hindsight on absences the
+    figure is +2.2: knowing who sat out does not add to it.
+  - What that last feature really is: projection x points per minute is close to the
+    player's 10-game scoring average, so "4+ above" mostly means "the line is well below
+    his recent scoring average". That is B8 (recent form vs line), not a minutes effect.
+- **Postseason (added 2026-11-15, after Steve asked whether playoff minutes were handled;
+  they were not: the projection above is fitted and tested on regular-season games only):**
+  - *Expected (written before running):* the regular-season model over-projects bench
+    players by 3-4 minutes in the postseason and under-projects starters by 2-3; postseason
+    terms remove most of that and cut the average miss by about 0.3 minutes.
+  - *Test:* postseason terms = an indicator for play-in and playoff games, on its own and
+    multiplied by level, by started-last-game and by the spread. Fitted on everything
+    through 2024-25 (53,653 player-games, 3,984 of them postseason); tested on the 2026
+    postseason (1,948 player-games). Figure: `b9_postseason_bias.html`.
+  - *Observed:* the regular-season model over-projects players averaging under 18 minutes
+    by 3.2 and those at 18 to <24 by 1.6, and under-projects everyone from 24 up by about
+    1.5. With postseason terms those become 0.8, 0.6 and, from 30 up, under 0.5; the 24 to
+    <30 group is still under-projected by 1.5. Average miss 5.46 to 5.07. The key
+    coefficient: in the postseason each 10 minutes of level is worth 1.4 more minutes.
+    Regular-season accuracy is unchanged (4.95).
+  - *Limits:* only players who appeared are scored, and players under 18 minutes sit out
+    about half of postseason games, so the bench error is understated. One postseason of
+    testing. Not yet tested against the price.
+- **Caveats:** one test period (2025-26 plus ten days of 2026-27). The +2.5 was the one
+  extreme group of five and is about break-even after vig, not a profit. Linear model:
+  no interactions beyond the two listed. The six markets share player-games.
+- **Decision:**
+  - Projected minutes: **include** as a model input in place of the three B3 features.
+  - Injury-report data for minutes: **exclude for now**; hindsight on absences improved
+    the projection by 0.09 minutes and did not change the price test.
+  - Projected-minus-level: **include**; a consistent 1-3 point under lean when minutes are
+    projected up.
+  - Line vs recent scoring average: **revisit as B8**, tested directly (10-game points
+    average minus the line, by market) rather than through minutes.
+
+### B8. The line against the player's recent average
+- **Script:** `eda/06_recent_form.py`. Regular season, close snapshot, all six markets,
+  288K player-game-markets. No model is fitted, so all seasons are used; 2023-24 and
+  2024-25 are reported apart from 2025-26 onward because B9 found the hint in the later
+  period.
+- **Definitions:**
+  - *10-game average:* the player's mean of that stat over his previous 10 games played
+    (at least 5, never the game itself). Left out when it is under 0.5.
+  - *Line vs average:* consensus close line / 10-game average - 1. Groups: 20%+ below, 10
+    to 20% below, within 10%, 10 to 20% above, 20%+ above (each includes its lower edge).
+  - *Streak:* 10-game average / 30-game average - 1 (at least 15 of the 30). Hot = 10%+
+    above, cold = 10%+ below, steady = between.
+  - *Gap:* over rate minus mean no-vig over probability. *Return:* profit per 1 staked at
+    each sportsbook's price, averaged per player-game-market (DFS left out).
+- **Expected (written before running):** line well below the average: overs beat the price
+  by 2-3 points; line well above: the usual 1-2 point under lean, no mirror effect;
+  similar across scoring markets; shows up in the earlier seasons too. Also tested: are
+  books fading hot streaks too hard?
+- **Figures:** `b8_line_vs_average_gap.html`, `b8_streak_split.html`
+- **Observed (2026-11-15):**
+  - A gradient, smaller than expected and the same in both periods. All markets pooled:
+    line 20%+ below the average, gap +0.2 (2023-25) and 0.0 (2025-26); within 10%, -1.5
+    and -1.5; 20%+ above, -1.6 and -2.4. So a line well below recent form removes the
+    usual under lean; it does not make overs profitable (return -6.4% against -9.1%
+    within 10%).
+  - B9's +2.5 for points does not hold up as stated: the direct points figure is +0.1 in
+    2023-25 and +1.4 (se 1.0) in 2025-26.
+  - Hot streaks: the opposite of the idea tested. Books do not over-fade hot players;
+    overs on hot players do worse in every line group (within 10%: hot -2.5, steady -1.4,
+    cold -0.5).
+  - The largest effect: hot players whose line is set 20%+ above even their 10-game
+    average (the market expects a bigger role still). Gap -4.3 (se 0.6; -4.4 in 2023-25
+    and -4.0 in 2025-26). Unders there returned +1.8% (se 1.0; +1.7% and +1.8% by
+    period), against -3.6% for unders in general. By market the under return is +5.8%
+    rebounds, +5.0% threes, +1.6% assists, about 0 for the scoring markets. 7,048
+    player-game-markets from 3,542 player-games.
+  - Sportsbook prices are wider than the catalog assumed: over and under returns sum to
+    about -13% at baseline, i.e. roughly -115 / -115, not the 4.5% vig quoted in A2.
+- **Reading across B3, B9 and B8:** one pattern three ways. When the market prices in a
+  step up (minutes trending up, minutes projected above average, a line above recent
+  production), overs fall short by 2-4 points more than usual. The market is right about
+  the direction and overshoots the size.
+- **Caveats:** the hot / 20%+ above cell is one of fifteen and was picked after looking;
+  its positive return is under 2 standard errors and comes mostly from two markets. The
+  six markets share player-games.
+- **Decision:** **include** line-vs-10-game-average and the streak measure as model
+  inputs, with their interaction. Not a standalone bet. The A2 vig figure needs
+  correcting (see Observed).
 
 ---
 
