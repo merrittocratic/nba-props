@@ -209,6 +209,21 @@ caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.intra
     --near-tip >> data/logs/neartip.log 2>&1
 ```
 
+`--near-tip --other-markets` takes the same eight slots for the five non-points markets
+(rebounds, assists, threes, points+rebounds, points+rebounds+assists) in one request per
+slot, labeled `oth_m120` .. `oth_m015`, under the source `odds_api_neartip_oth_hist`. A
+test day (2025-01-15, 11 games) saved all 88 snapshots for 4,401 credits and 4.4 MB: 50
+credits a snapshot, 400 a game, so about 1.66M credits and 1.7 GB for every game since
+May 2023. That is over the default daily cap, so raise it:
+
+```sh
+caffeinate -i op run --env-file=.env.template -- uv run python -m nbaprops.intraday \
+    --near-tip --other-markets --daily-cap 1700000 >> data/logs/neartip_oth.log 2>&1
+```
+
+The live capture takes no near-tip snapshots (its last pregame snapshot is `close`, one
+hour before tip-off), so both near-tip sets are history only.
+
 ## In-game backfill
 
 `python -m nbaprops.inplay` pulls historical in-game `player_points` lines (region `us`):

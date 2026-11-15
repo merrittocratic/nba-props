@@ -36,6 +36,7 @@ ODDS_SOURCES = (
     inplay.SOURCE,
     intraday.SOURCE,
     intraday.NEAR_SOURCE,
+    intraday.NEAR_OTHER_SOURCE,
     backfill.ALT_SOURCE,
     live.SOURCE,
 )
@@ -44,6 +45,7 @@ HISTORICAL_SOURCES = (
     inplay.SOURCE,
     intraday.SOURCE,
     intraday.NEAR_SOURCE,
+    intraday.NEAR_OTHER_SOURCE,
     backfill.ALT_SOURCE,
 )
 _KIND = re.compile(r"/events/([0-9a-f]+)/odds \[(\w+)\]")

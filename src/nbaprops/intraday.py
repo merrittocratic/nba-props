@@ -15,6 +15,11 @@ snapshot: every 15 minutes from 2 hours to 15 minutes before tip-off (kinds pts_
 pts_m015, the minutes left), when injury and lineup news lands. Those go under their
 own source, odds_api_neartip_hist. 8 slots, ~80 credits a game.
 
+--near-tip --other-markets takes the same 8 slots for the five non-points markets
+(rebounds, assists, threes, points+rebounds, points+rebounds+assists) in one request:
+kinds oth_m120 .. oth_m015, source odds_api_neartip_oth_hist, up to 50 credits a
+snapshot (10 per market with lines), so up to ~400 a game.
+
 Several games run at once (--workers). Spend is tracked under its own manifest source
 with its own cap and the same floor as the other backfills. Resumable: snapshots
 already saved are skipped (empty ones are re-checked, which is free). A dry run lists
@@ -36,7 +41,7 @@ from nbaprops import snapshots
 from nbaprops.backfill import FIRST_PROPS_DAY, Backfill, snapshot_data
 from nbaprops.budget import CreditBudget
 from nbaprops.http import Http, UrllibHttp
-from nbaprops.odds_api import INTRADAY_MARKETS, INTRADAY_REGIONS, iso_z
+from nbaprops.odds_api import INTRADAY_MARKETS, INTRADAY_REGIONS, MARKETS, iso_z
 from nbaprops.recorder import Recorder, utcnow
 from nbaprops.storage import Manifest, RawStore
 
@@ -45,6 +50,8 @@ log = logging.getLogger("nbaprops")
 SOURCE = "odds_api_intraday_hist"
 NEAR_SOURCE = "odds_api_neartip_hist"
 NEAR_MINUTES = tuple(range(120, 0, -15))  # 120, 105, ..., 15
+NEAR_OTHER_SOURCE = "odds_api_neartip_oth_hist"
+OTHER_MARKETS = tuple(m for m in MARKETS if m not in INTRADAY_MARKETS)
 COST = 10 * len(INTRADAY_MARKETS) * len(INTRADAY_REGIONS)
 STEP = snapshots.INTRADAY_STEP
 MAX_FAILURES = 50
@@ -65,19 +72,33 @@ def slots(tip: datetime) -> list[tuple[str, datetime]]:
     return out
 
 
-def near_tip_slots(tip: datetime) -> list[tuple[str, datetime]]:
+def near_tip_slots(tip: datetime, prefix: str = "pts") -> list[tuple[str, datetime]]:
     """(kind, fetch time) every 15 minutes in the last 2 hours, earliest first."""
-    return [(f"pts_m{m:03d}", tip - timedelta(minutes=m)) for m in NEAR_MINUTES]
+    return [(f"{prefix}_m{m:03d}", tip - timedelta(minutes=m)) for m in NEAR_MINUTES]
+
+
+def near_tip_other_slots(tip: datetime) -> list[tuple[str, datetime]]:
+    return near_tip_slots(tip, "oth")
 
 
 class Intraday(Backfill):
     source = SOURCE
 
-    def __init__(self, rec: Recorder, api_key: str, budget: CreditBudget, near_tip=False):
-        if near_tip:  # before super().__init__, which reads what's taken for self.source
-            self.source = NEAR_SOURCE
-        self.slots = near_tip_slots if near_tip else slots
-        super().__init__(rec, api_key, budget)
+    def __init__(
+        self,
+        rec: Recorder,
+        api_key: str,
+        budget: CreditBudget,
+        near_tip=False,
+        other_markets=False,
+    ):
+        markets, source, self.slots = INTRADAY_MARKETS, SOURCE, slots
+        if near_tip and other_markets:
+            markets, source, self.slots = OTHER_MARKETS, NEAR_OTHER_SOURCE, near_tip_other_slots
+        elif near_tip:
+            source, self.slots = NEAR_SOURCE, near_tip_slots
+        super().__init__(rec, api_key, budget, markets, INTRADAY_REGIONS, source)
+        self.cost = self.full_cost
         self.taken_lock = threading.Lock()
 
     def has_lines(self, resp) -> bool:
@@ -102,7 +123,7 @@ class Intraday(Backfill):
             with self.taken_lock:
                 if (ev["id"], k) in self.taken:
                     continue
-            if reason := self.budget.check(COST):
+            if reason := self.budget.check(self.cost):
                 self.stopped = reason
                 return saved
             resp = self.get(
@@ -111,10 +132,10 @@ class Intraday(Backfill):
                 [
                     ("date", iso_z(at)),
                     ("regions", ",".join(INTRADAY_REGIONS)),
-                    ("markets", ",".join(INTRADAY_MARKETS)),
+                    ("markets", ",".join(self.markets)),
                     ("oddsFormat", "american"),
                 ],
-                COST,
+                self.cost,
                 # 404: not listed yet that far out; free, like an empty snapshot.
                 keep=lambda r: r.status != 404 and (not r.ok or self.has_lines(r)),
             )
@@ -135,10 +156,18 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument(
         "--near-tip", action="store_true", help="every 15 min in the last 2 hours instead"
     )
+    p.add_argument(
+        "--other-markets",
+        action="store_true",
+        help=f"with --near-tip: the non-points markets instead, source {NEAR_OTHER_SOURCE}",
+    )
     p.add_argument("--data-dir", default="data", type=Path)
     p.add_argument("--daily-cap", default=1_000_000, type=int, help="credits per UTC day")
     p.add_argument("--floor", default=50_000, type=int, help="stop above this many plan credits")
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    if args.other_markets and not args.near_tip:
+        p.error("--other-markets needs --near-tip")
+    return args
 
 
 def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) -> int:
@@ -157,13 +186,15 @@ def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) 
         clock=clock,
         redact=(api_key,),
     )
-    source = NEAR_SOURCE if args.near_tip else SOURCE
+    source = SOURCE
+    if args.near_tip:
+        source = NEAR_OTHER_SOURCE if args.other_markets else NEAR_SOURCE
     budget = CreditBudget(
         spent_today=manifest.credits_spent_on(source, clock().date()),
         daily_cap=args.daily_cap,
         monthly_floor=args.floor,
     )
-    bf = Intraday(rec, api_key, budget, near_tip=args.near_tip)
+    bf = Intraday(rec, api_key, budget, near_tip=args.near_tip, other_markets=args.other_markets)
 
     days = games = 0
     oldest = None
@@ -189,8 +220,8 @@ def main(argv: list[str] | None = None, http: Http | None = None, clock=utcnow) 
         n_slots = len(bf.slots(utcnow()))
         typical = n_slots if args.near_tip else 10
         print(
-            f"planned spend: about {games * typical * COST:,} credits "
-            f"(at most {games * n_slots * COST:,})"
+            f"planned spend: about {games * typical * bf.cost:,} credits "
+            f"(at most {games * n_slots * bf.cost:,})"
         )
     else:
         print(f"snapshots saved this run: {saved}")

@@ -2,6 +2,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
+import pytest
 from conftest import FAKE_KEY, fixture_bytes, fixture_json
 
 from nbaprops import intraday, snapshots, tidy
@@ -136,3 +137,23 @@ def test_near_tip_run_uses_its_own_source(tmp_path, monkeypatch):
     assert snapshots.done(m, intraday.SOURCE) == set()
     run(tmp_path, http, "--near-tip")  # resume: nothing refetched
     assert len(http.odds_calls()) == 8
+
+
+def test_near_tip_other_markets_has_own_source_kinds_and_markets(tmp_path, monkeypatch):
+    monkeypatch.setenv("ODDS_API_KEY", FAKE_KEY)
+    tip = PregameFake(datetime(2025, 1, 1, tzinfo=UTC)).tip
+    http = PregameFake(posted_from=tip - timedelta(hours=20))
+    assert run(tmp_path, http, "--near-tip", "--other-markets") == 0
+    m = Manifest(tmp_path)
+    kinds = sorted(k for _, k in snapshots.done(m, intraday.NEAR_OTHER_SOURCE))
+    assert kinds == sorted(f"oth_m{x:03d}" for x in range(120, 0, -15))
+    assert snapshots.done(m, intraday.NEAR_SOURCE) == set()
+    asked = {p["markets"] for p in http.odds_calls()}
+    assert asked == {",".join(intraday.OTHER_MARKETS)}
+    assert "player_points" not in intraday.OTHER_MARKETS and len(intraday.OTHER_MARKETS) == 5
+
+
+def test_other_markets_requires_near_tip(tmp_path, monkeypatch):
+    monkeypatch.setenv("ODDS_API_KEY", FAKE_KEY)
+    with pytest.raises(SystemExit):
+        run(tmp_path, PregameFake(datetime(2025, 1, 1, tzinfo=UTC)), "--other-markets")
