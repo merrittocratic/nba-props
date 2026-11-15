@@ -6,23 +6,12 @@ prints the summary tables used to fill in the catalog.
     uv run --group eda python eda/01_outcome_profile.py
 """
 
-import textwrap
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from charts import DFS, MAIN_NOTE, MUTED, SERIES, SURFACE, TEXT, TIDY, implied, save, style, titled
 from plotly.subplots import make_subplots
-
-TIDY = Path("data/tidy_mini")
-FIG = Path("eda/figures")
-
-# Validated default categorical order (dataviz skill palette.md), light surface.
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
-SURFACE = "#fcfcfb"
-TEXT = "#0b0b0b"
-MUTED = "#52514e"
 
 MARKETS = {
     "player_points": "Points",
@@ -33,7 +22,6 @@ MARKETS = {
     "player_points_rebounds_assists": "Pts+Reb+Ast",
 }
 MARKET_COLOR = dict(zip(MARKETS.values(), SERIES, strict=True))
-DFS = {"prizepicks", "underdog", "pick6", "betr_us_dfs"}
 KEY = ["event_id", "kind", "market", "player_key"]
 PG = ["event_id", "market", "player_key"]  # one player-game-market
 # Seasons the data covers only in part (data starts 2023-05-03; last pull 2026-10-29).
@@ -41,11 +29,6 @@ SEASON_NOTES = {2023: " (playoffs only)", 2027: " (first weeks)"}
 PHASES = {2: "regular season", 3: "postseason", 5: "postseason"}  # play-in with playoffs
 # Shared small print: what a consensus line is and what a book's main line is.
 CONSENSUS_NOTE = "Consensus line = median of the books' main lines for that player and market."
-MAIN_NOTE = (
-    "Main line = the book's line priced nearest 50/50; no-vig probability = over price"
-    " rescaled so over + under = 100%."
-)
-
 # Opening-line bands for A4: market -> (inner edges, labels). Each band is [lo, hi): it
 # includes its lower edge. Fixed ranges, not quantiles: prop lines take few distinct
 # values (17 for threes), so equal-count groups would split one line value across groups.
@@ -62,48 +45,10 @@ BANDS = {
 }
 
 
-def style(fig: go.Figure, title: str) -> go.Figure:
-    fig.update_layout(
-        # Pin the title to the top so the small print grows downward into the margin.
-        title=dict(text=title, yref="container", y=1, yanchor="top", pad=dict(t=16)),
-        template="simple_white",
-        paper_bgcolor=SURFACE,
-        plot_bgcolor=SURFACE,
-        font=dict(color=TEXT, size=13),
-        hoverlabel=dict(bgcolor="white", font_color=TEXT),
-        legend_title_text="",
-        margin_t=85 + 26 * title.count("<br>"),
-    )
-    fig.update_xaxes(showgrid=False, linecolor=MUTED, tickcolor=MUTED)
-    fig.update_yaxes(showgrid=True, gridcolor="#ecebe8", linecolor=MUTED, tickcolor=MUTED)
-    fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
-    return fig
-
-
-def titled(title: str, *notes: str) -> str:
-    """Chart title plus small print saying what the unit, axes and groups are.
-
-    The notes are joined and wrapped to short lines so they fit a laptop-width window.
-    """
-    lines = textwrap.wrap(" ".join(notes), width=160)
-    return title + "".join(f"<br><sup>{line}</sup>" for line in lines)
-
-
 def season_label(season: float) -> str:
     """ESPN labels a season by its end year: 2024 -> '2023-24'."""
     y = int(season)
     return f"{y - 1}-{y % 100:02d}" + SEASON_NOTES.get(y, "")
-
-
-def save(fig: go.Figure, name: str) -> None:
-    fig.write_html(FIG / name, include_plotlyjs="cdn")
-    print(f"  wrote {FIG / name}")
-
-
-def implied(american: pd.Series) -> pd.Series:
-    """American odds -> implied probability (with vig)."""
-    a = american.astype(float)
-    return np.where(a < 0, -a / (-a + 100), 100 / (a + 100))
 
 
 def load() -> pd.DataFrame:
@@ -702,7 +647,6 @@ def a6(main: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    FIG.mkdir(parents=True, exist_ok=True)
     po = load()
     main_ = main_lines(po)
     cons = consensus(main_)

@@ -239,6 +239,116 @@ number quoted in A1-A3 below changed.
   pace and efficiency using game totals (B6), and move the rotation test into the B-series
   script.
 
+### A7. How one book's line and price move together (A5 follow-up)
+- **Question:** when a book's view of a player changes, when does it change the price
+  and when does it move the line? How far does it shade the price first?
+- **Script:** `eda/02_line_price_moves.py`. Points only.
+- **Definitions:**
+  - *Chain:* one sportsbook's points line for one player-game, followed across the
+    2-hourly snapshots (30 hours to 4 hours before tip) and the 15-minute snapshots (2
+    hours to 15 minutes before tip).
+  - *Step:* two consecutive snapshots in a chain. 15-minute steps and 2-hour steps are
+    reported separately and are not comparable in height.
+  - *Line moved:* the main line differs between the two snapshots. *Price only:* same
+    line, over or under price differs. Everything else is no change.
+  - *Books:* the pooled charts use the nine sportsbooks that post one points line per
+    player (BetMGM, BetOnline, DraftKings, Fanatics, FanDuel, MyBookie, PointsBet,
+    Caesars, Wynn). Ladder books (Unibet, BetRivers, Barstool, Bovada: more than one line
+    in 80%+ of snapshots) are shown only in the by-book chart, because their main line
+    is just the rung nearest 50/50. DFS sites are left out (placeholder prices).
+- **Expected (written before plotting):** most steps show no change; price-only changes
+  outnumber line moves several times over; line moves concentrate in the last 2 hours;
+  a book shades the over to about 54-56% before raising a line, then resets to about
+  50%; books differ in style.
+- **Figures:** `a7_move_type_by_time.html`, `a7_move_chance_by_price.html`,
+  `a7_book_style.html`
+- **Observed (2026-11-15, 3.9M steps at single-line books):**
+  - Frequency: in a 15-minute step in the last 2 hours, 26-36% are price-only changes
+    and 5.5-10% are line moves, both rising toward tip-off (final step: 36% and 10%).
+    Price-only changes are about four times as common as line moves. As expected.
+  - Timing: per 2-hour step, line moves run 6-8% from 28 to 14 hours out and 15-16% from
+    6 to 2 hours out. That is under 2% per 15 minutes, against 5.5-10% per 15 minutes in
+    the last 2 hours, so line moves are several times denser near tip. As expected.
+  - Threshold: lower and sharper than I guessed. With the over at 50% the line moves up
+    in 1.7% of 15-minute steps; at 51%, 3.7%; at 52%, 8.5%; at 53% and beyond it sits
+    flat at about 11%. Moves down mirror this at 48% and below. So the trigger is about
+    2 points of probability off 50%, not 4-6, and shading further does not make a move
+    more likely.
+  - Reset: 95-98% of line moves are exactly one point. The median price goes from 52%
+    on the old line to 48% on the new one (and 48% to 52% for moves down): the book
+    flips to the other side of 50%, it does not return to 50%.
+  - Translation: a point of line is worth about 5-6% of over probability at these levels
+    (A5). A move from "24.5 at 52%" to "25.5 at 48%" is therefore a change of only about
+    1.5-2 points of probability, a third of a point of line. The line moves in whole
+    points; the price carries the fraction. One line move usually means a small change
+    of view crossed a threshold, not a full point of new information.
+  - Books: all books trigger at the same 48% / 52%. Style differs in how often they act:
+    Fanatics and PointsBet change price in 45% of steps and move lines in 12-14%;
+    FanDuel changes price as often (46%) but moves lines in 6%; Caesars and BetMGM
+    change price in only 17-22% of steps; DraftKings is in between (26% and 10%).
+- **Caveats:** a "no change" step includes a book that simply had not refreshed. Steps
+  from the same player-game and from different books are correlated, so no CIs are
+  shown. Main line for the nine books is their only line, so no ladder choice is involved.
+- **Decision:** treat a book's position as line plus price, not line alone. Candidate
+  feature: a price-adjusted line (line + (no-vig over probability - 50%) / price per
+  point from A5), and its change from open, in place of the raw line move from A4. Next:
+  (1) redo A4's "does the move predict the result" with the price-adjusted line; (2)
+  lead-lag across books (who moves first); (3) the same analysis for the count markets
+  once the near-tip pull for the other five markets is tidied.
+
+### A8. Price-adjusted line, and whether its move predicts the result
+- **Question:** if a book's position is line plus price (A7), does the open-to-close move
+  of a price-adjusted line predict results better than the raw line move from A4, and is
+  anything left at the close?
+- **Script:** `eda/03_adjusted_line.py`. Points only, sportsbooks only (DFS prices are
+  placeholders).
+- **Definitions:**
+  - *Price per point:* over probability that one point of line is worth at a given line
+    level, measured from pairs of ladder rungs one point apart on either side of 50%
+    (BetRivers, Bovada, Unibet; 67K pairs). 8.7% at a line of 7, 7.3% at 11, 6.1% at 16,
+    5.4% at 21, 5.0% at 26, 4.5% at 31; interpolated between. This reproduces the A5 table.
+  - *Adjusted line (one book):* line + (no-vig over probability - 50%) / price per point.
+    24.5 with the over at 52% is about 24.8.
+  - *Consensus adjusted line:* median across sportsbooks at that snapshot. *Adjusted move:*
+    consensus at close minus consensus at open, in points.
+  - *Move bands:* down 1+, down 0.5 to 1, down 0.15 to 0.5, within 0.15, up 0.15 to 0.5,
+    up 0.5 to 1, up 1+ (each includes its lower edge).
+  - *Gap:* share of player-games over the consensus raw line minus the mean no-vig over
+    probability at the books whose main line equals it; pushes and player-games with no
+    such book left out.
+- **Expected (written before running):** (1) the adjusted move predicts the result against
+  the open better than the raw move; (2) where the raw line never moved, the price-only
+  move still predicts; (3) nothing is left against the close price; (4) a one-point
+  adjusted move is worth about one point of result.
+- **Figures:** `a8_move_vs_result.html`, `a8_edge_by_move.html`
+- **Observed (2026-11-15, 28,325 player-games with an open and a close):**
+  - (1) Better, but only slightly: correlation with (actual - open line) is 0.142 for the
+    adjusted move against 0.134 for the raw move.
+  - (2) Confirmed. The raw consensus line did not move in 53% of player-games, and the
+    price-only move still sorts them: against the opening price, overs fall short by 6.7
+    points after a 0.5-1 point adjusted move down and beat the price by 3.1 after the same
+    move up (no move: -3.0).
+  - (3) Mostly confirmed. Against the closing price the gap is -0.7 to -2.9 in every band
+    with no trend by size. A faint leftover: after up-moves the under lean is 1.5-2.5
+    points smaller than after no move or down-moves (about 2 standard errors in the
+    line-unchanged group). Not enough to act on; retest on other markets.
+  - (4) Confirmed. Result lands 1.08 points further for each point of adjusted move
+    (down 1+: moved -1.60, landed -1.96; up 1+: moved +1.78, landed +1.91). For price-only
+    moves the slope is 1.55 (se about 0.16): a shade in price understates the change in
+    view by about a third.
+  - Betting at the open in the direction of the eventual move: +9.4 points over the price
+    for up 1+, -11.7 for down 1+. That needs the move to be known in advance.
+- **Caveats:** at the open the median player-game has one sportsbook posted (seven at the
+  close), so the "open consensus" is usually a single book and part of the move is the
+  difference between that book and the field. The no-move baseline here (-3.0) is lower
+  than the all-games points figure in A2 (-1.5) because only player-games with an open
+  snapshot are included. Open-to-close only; the intraday path is not used yet.
+- **Decision:** include the adjusted line and its move from open as model inputs in place
+  of the raw line and raw move; keep the raw move only as a check. Next: (a) rebuild the
+  move on a same-book basis (each book against its own open) to remove the one-book-open
+  problem; (b) use the intraday and near-tip path to ask how early the move is visible;
+  (c) repeat for the count markets, where price carries almost all the movement.
+
 ---
 
 ## Part B: candidates from box scores and game lines (data in hand)
