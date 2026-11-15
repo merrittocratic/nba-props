@@ -22,9 +22,30 @@ from NBA.com may only be used for games in a *later* season unless pulled with
 
 ## Part A: outcome profile (no features yet)
 
-Script: `eda/01_outcome_profile.py`. Base table: `close` snapshot, each book's main
-line (the ladder rung whose no-vig over probability is nearest 50%), players who
-played. Consensus line = median of the books' main lines.
+Script: `eda/01_outcome_profile.py`. Every chart carries its own small print (unit, axes,
+groups, what was left out); the shared terms are defined here.
+
+### Definitions used in every Part A chart
+
+| Term | Meaning |
+|---|---|
+| Player-game | One player in one game in one market, players who played only. |
+| Book-line | One book's main line for one player-game. A player priced by 8 books is 8 book-lines, so book-line counts overstate the independent sample. |
+| Main line | The one line per book and snapshot priced nearest 50/50 (smallest gap between no-vig over probability and 50%). 87% of book-lines have only one line posted; Unibet, BetRivers, MyBookie, Barstool and Bovada post ladders. For 0.5% of book-lines no line has both prices (mostly Pick6 and MyBookie) and the first listed is used. |
+| No-vig over probability | Over implied probability / (over + under implied probabilities), from American odds. |
+| Consensus line | Median of the books' main lines for that player-game and snapshot. Median 7 books at close; 7% of player-games have one book and 6% have two, where "consensus" is just that book or the midpoint. A median of an even number of books can be a whole number (1-5% of lines). |
+| Margin | Actual stat minus the line. Above 0 = over. |
+| Snapshot | `open` (first time lines are posted), `morning` (11:00 ET), `close` (one hour before tip). Base table is `close` unless stated. |
+| Season | ESPN's label is the end year; charts show it as 2023-24. Regular season, play-in and playoffs are pooled in A1-A5 (A6 splits them). Preseason is not in the data: the Odds API lists it under a separate sport key that was never pulled. 2022-23 is playoffs only (35 games) and 2026-27 runs to 2026-10-29. |
+| Line level on an x-axis | The line value itself, one group per half-point line (a whole-number consensus such as 12.0 is grouped with 12.5). Groups under a stated minimum count are left out. |
+
+Chart audit, 2026-11-15 (after the A4 quintile problem): three more build errors fixed.
+`a1_sd_vs_line` grouped lines with `round()`, which rounds halves to even, so each even
+number pooled two lines (2.5 with 1.5) and odd numbers held only whole-number lines; it now
+uses one group per line. `a1_margin_hist` used automatic bins that did not line up with
+half-point margins; bins are now one unit wide. `a3_open_vs_close_mae` drew open and close
+as side-by-side bars that could not show a 1% difference; it now plots the change. No
+number quoted in A1-A3 below changed.
 
 ### A1. Margin distribution by market
 - **Question:** what does `actual - consensus close line` look like per market?
@@ -57,8 +78,8 @@ played. Consensus line = median of the books' main lines.
   rises (2.5: -3.0, 3.5: -4.3, 4.5: -8.7 points). Low points lines (2.5-4.5) are -2 to -5.
   The 0.5 assists line is the one bucket where overs beat the price (+2.5).
   Seasons: ESPN labels a season by its end year (2024 = 2023-24); "2023" is only the
-  2023 playoffs (35 games) and "2027" is the first ~4 weeks of 2026-27, so ignore their
-  extremes.
+  2023 playoffs (35 games) and "2027" is the first 10 days of the 2026-27 regular season
+  (2026-10-20 to 10-29, 71 games), so ignore their extremes.
 - **Caveats:** the rows are book-lines, not independent player-games, so the CIs are too
   narrow. A ~1.5-point lean under is still smaller than the ~4.5% vig, so on its own it
   isn't a bet.
@@ -84,9 +105,34 @@ played. Consensus line = median of the books' main lines.
   book-specific stale lines are worth their own study (BetRivers/FanDuel vs consensus)
   later; not a model feature.
 
-### A4. Pregame line movement by opening-line window
-- **Question:** how do lines move from open to morning to close, split by the player's
-  opening-line window (quintiles within each market), and does the move predict the result?
+### A4. Pregame line movement by opening-line band
+- **Question:** how do lines move from open to morning to close, split by the level of the
+  opening line, and does the move predict the result?
+- **Definitions:**
+  - *Unit:* one player-game-market with a consensus line at both `open` and `close`
+    (consensus = median of the books' main lines, as above).
+  - *Move:* consensus line at the snapshot minus the consensus opening line, in stat
+    units. Lines that didn't move count as 0 in every average.
+  - *Opening-line band:* a fixed range of the consensus opening line, set per market in
+    `BANDS` in the script. Each band includes its lower edge.
+
+    | Market | Bands |
+    |---|---|
+    | Points | under 10, 10 to <15, 15 to <20, 20 to <25, 25+ |
+    | Rebounds | under 3, 3 to <5, 5 to <7, 7 to <9, 9+ |
+    | Assists | under 2, 2 to <4, 4 to <6, 6 to <8, 8+ |
+    | Threes | under 1 (the 0.5 line), 1 to <2, 2 to <3, 3+ |
+    | Pts+Reb | under 15, 15 to <20, 20 to <25, 25 to <30, 30+ |
+    | Pts+Reb+Ast | under 15, 15 to <20, 20 to <25, 25 to <30, 30 to <35, 35+ |
+
+  - A band describes the line that night, not the player: most players appear in more
+    than one band over the sample. "Low band = bench player, top band = star" is a loose
+    reading, not something the chart measures.
+  - Replaced 2026-11-15: the first version used quintiles of the opening line within
+    each market ("Q1 lowest" .. "Q5 highest"). Prop lines take few distinct values, so
+    equal-count groups split one line value across groups by row order (threes Q2 and Q3
+    were both entirely the 1.5 line; 59-77% of rebounds, assists and threes rows sat on a
+    value shared between groups).
 - **Expected (written before plotting):** most lines don't move (median 0). Moves get
   bigger as the line rises. Average drift is about 0. Lines that moved up go over more
   often when measured against the open line, but not against the close line.
@@ -98,9 +144,13 @@ played. Consensus line = median of the books' main lines.
     instead of the line.
   - Size: the mean absolute move is 0.6 for points and 0.8 for PRA.
   - Direction: points and combo lines drift **up** on average (+0.12 to +0.15). The
-    drift is biggest for the lowest windows (points Q1 +0.18, PRA Q1 +0.23) and close to
-    0 for the top window (points Q5 +0.02). This is the opposite of my "moves get bigger
-    as the line rises" guess.
+    drift is biggest for the lowest bands (points under 10: +0.18, PRA under 15: +0.24)
+    and about 0 for the top band (points 25+: -0.00, PRA 35+: -0.01). High lines do move
+    more often (points: 41% of lines under 10 moved, 57% of lines 25+), as guessed, but
+    their moves cancel out, where low lines move mostly up.
+  - The count markets show the same ordering at a smaller scale: threes +0.06 on the 0.5
+    line down to -0.10 at 3+, assists +0.04 under 2 down to -0.08 at 8+, rebounds +0.11
+    under 3 down to -0.03 at 9+.
   - Result: against the open line, up-moves go over 55-62% of the time and down-moves
     37-42%, so the moves carry real information. Against the close line, points and
     combo overs are flat by direction (48-49%), so the close takes it in. Threes,
@@ -114,7 +164,7 @@ played. Consensus line = median of the books' main lines.
     assists); threes are smaller (+2.4 / -2.8). That edge exists only for a bet placed at
     the open that anticipates the move.
 - **Decision:** candidate features: open-to-close move (direction and size) and opening-line
-  window. Only three pregame snapshots are available; denser intraday moves need the
+  level (the opening line itself, not a band). Only three pregame snapshots are available; denser intraday moves need the
   live capture (from 2026-10) or the in-play table.
 
 ### A5. How price and line trade off (price per point of line)
@@ -143,6 +193,51 @@ played. Consensus line = median of the books' main lines.
   close to classify moves (price only; line moves and price resets; both) and to measure
   how big a price move has to get before the line moves. Finer than three pregame
   snapshots would need more frequent pregame capture (costs credits).
+
+### A6. Regular season vs postseason
+- **Question:** do the Part A results differ by phase of the season? (Asked as "split out
+  preseason"; there is no preseason data, so the split is regular season vs postseason =
+  play-in + playoffs.)
+- **Expected (written before running):** preseason is a small share of lines, so pooled
+  numbers barely move; preseason itself leans further under. Wrong on the premise: zero
+  preseason rows. No expectation was written for the postseason before seeing it.
+- **Figure:** `a6_phase_gap.html` (over rate minus no-vig over probability, by market and
+  phase, one row per player-game)
+- **Observed (2026-11-15, close, books' main lines, 299K regular-season and 27K postseason
+  player-games):**
+  - Overs fall short of the price by 3.4 points in the postseason (se 0.3) against 1.3 in
+    the regular season (se 0.1). All four postseasons agree: -4.0, -2.4, -4.4, -3.0.
+  - By market (postseason vs regular season): assists -5.2 vs -0.2, PRA -3.9 vs -1.2,
+    points -3.6 vs -1.2, threes -3.1 vs -1.7, Pts+Reb -3.1 vs -1.4. Rebounds show no
+    difference (-1.4 vs -1.9).
+  - Betting every sportsbook under at the close returned +0.0% in the postseason (se 0.6%)
+    against -4.1% in the regular season. That is break-even, not a profit; assists alone
+    were +3.5% (se 1.4%), the best of six markets, so treat it as a lead, not a result.
+  - Pooled A1-A5 numbers are regular-season numbers in practice (92% of player-games).
+    Postseason lines also move less (points: 38% of lines moved vs 49% overall).
+- **Why (Steve's hypothesis, 2026-11-15: playoff rotations shrink from 10-12 players to
+  7-8), tested ad hoc against `box_scores.parquet`, players with 20+ regular-season games:**
+  - The shrink is real but smaller than that in the average game: players with 10+ minutes
+    per team-game go from 9.1 to 8.3, and the top five's share of minutes from 66% to 72%.
+    Players averaging under 18 minutes sit out 48% of postseason games.
+  - Minutes against the player's own regular-season average: -4.2 (under 18 min), -3.8
+    (18-24), -0.9 (24-30), +2.5 (30-34), +3.5 (34+).
+  - The extra under lean is **not** where minutes were cut. It is largest for 30-34 minute
+    players (-4.3 postseason vs -0.3 regular), who play more, and absent for 18-24 minute
+    players (-1.9 vs -2.1).
+  - What drops is production per minute: points per 36 minutes fall about 2.5 in every
+    tier (30-34 tier: 20.5 to 17.9). Starters play 2.5 more minutes and still score 0.9
+    fewer points; their points line sits only 0.5 below their season average.
+  - Holding minutes fixed (within 2 of the player's average), the gap is -4.6 in the
+    postseason vs -1.6 in the regular season.
+  - Reading: books appear to price the minutes change and under-adjust for lower output
+    per minute (slower pace, tougher defense, or both; not separated here).
+- **Caveats:** four postseasons, 300 games; the under-return figure was looked at after
+  the gap was found; the rotation test is not yet in a script.
+- **Decision:** include a postseason indicator as a model input, and build the Part B
+  minutes features (B3) so they can interact with it. Next: split per-minute output into
+  pace and efficiency using game totals (B6), and move the rotation test into the B-series
+  script.
 
 ---
 
