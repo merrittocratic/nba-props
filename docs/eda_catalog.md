@@ -363,7 +363,7 @@ number quoted in A1-A3 below changed.
 | B3 | Minutes level, volatility, trend (previous 10 games) | Unstable roles make lines less reliable | Wider margin spread; under lean for bench players | **done 2026-11-15, see B3 below** |
 | B4 | Teammate out (top-usage teammate DNP) | Usage moves to whoever is left | Positive margin if lines adjust late or too little | partly: minutes side covered in B9 (hindsight on absences adds little); usage shift not tested |
 | B5 | Spread / blowout risk | Big favourites' starters sit late | Under lean for starters when abs(spread) is large | partly: enters the B9 projection (blowout risk costs a 34-minute player about 1 minute per 10 points of spread); not tested against margin directly |
-| B6 | Game total | Higher total, more possessions | Mostly priced in; little left vs margin | not started |
+| B6 | Game total | Higher total, more possessions | Mostly priced in; little left vs margin | partly: the closing total prices the whole postseason scoring drop (B10); not tested against prop margin |
 | B7 | Rest / back-to-back | Tired legs, rest days for stars | Small under lean on the second night | partly: enters the B9 projection (long rest -1.2 minutes); not tested against margin directly |
 | B8 | Recent form vs line (last 5 minus line) | Books overreact or underreact to hot streaks | Unknown; test both directions | **done 2026-11-15, see B8 below** |
 
@@ -579,6 +579,68 @@ number quoted in A1-A3 below changed.
   correcting (see Observed).
 
 ---
+
+### B10. Why output per minute drops in the postseason: pace, usage or efficiency
+- **Script:** `eda/07_postseason_output.py`. Follow-up to A6 and the B9 price test, which
+  both pointed at output per minute, not minutes, as the source of the postseason under
+  lean. No model is fitted and no prices are used except the closing game total.
+- **Definitions:**
+  - *Possessions a player ends ("used"):* field-goal attempts + 0.44 x free-throw attempts
+    + turnovers (0.44 is the standard share of free throws that end a possession).
+  - *Team possessions in a game:* the same sum for the team, minus offensive rebounds,
+    averaged over the two teams. *Possessions while he is on the floor:* game possessions
+    x his minutes / game minutes.
+  - *Pace:* on-floor possessions per minute. *Usage:* used / on-floor possessions.
+    *Efficiency:* points / used. Points per minute = pace x usage x efficiency exactly.
+  - *Comparison:* each player's postseason against his own regular season of the same
+    year, with the regular season rescaled to his postseason minutes, then summed over
+    the players in a group. 760 player-seasons with 20+ regular-season games and
+    postseason minutes (2023 playoffs from May 3, then 2024 to 2026).
+  - *Groups:* regular-season minutes per game that season: under 18, 18 to <24, 24 to
+    <30, 30 to <34, 34+.
+  - *Change:* log change (-0.05 is about -5%), so the three parts add to the total.
+    Intervals: 95% from resampling player-seasons 1,000 times.
+- **Expected (written before building):** points per minute down 10 to 12% in each tier;
+  pace -3 to -4%; efficiency about -3%; usage about -5% and the largest part (starters
+  sharing the floor more); closing game total unbiased in the postseason (within 1
+  point).
+- **Figure:** `b10_postseason_decomposition.html`
+- **Observed (2026-11-17):**
+  - Total as expected: points per minute fall 12.5% over all players (18.2 to 16.1 per
+    36 minutes), between 9.9% and 14.3% by tier.
+  - Pace as expected: -3.8% in every tier (100.4 to 96.6 possessions per 48 minutes),
+    tightly measured.
+  - Efficiency is the largest part, not usage: -5.4% overall (1.053 to 0.997 points per
+    possession used), -4.5% to -7.9% by tier. It is shot-making: effective field-goal
+    percentage falls from 55.9% to 52.7%. Free-throw rate and turnover share barely move.
+  - Usage -3.3% overall, but only for the middle: about -5% at 24 to <34 minutes, -1.9%
+    at 34+ (interval includes 0), and 0 for players under 24 minutes.
+  - Assists fall most: 5.67 to 4.78 per 100 on-floor possessions (-17%), -21% per minute.
+    Rebounds per minute fall 5%, about the pace change. That lines up with A6: assists
+    had the largest postseason under lean and rebounds none.
+  - Game totals price all of it. For teams that reached the postseason, the closing total
+    falls 6.1% (228.5 to 215.1) and actual scoring falls 6.1% (228.7 to 215.2).
+    Postseason games finished 0.2 above the closing total on average (se 1.0, 300 games).
+- **Reading (interpretation, not measured):**
+  - The market knows playoff games are slower and lower-scoring; the game total is
+    unbiased. The prop lines do not pass all of that through to the player (A6: starters'
+    points lines sit 0.5 below their season average while they score 0.9 fewer).
+  - Players lose 12.5% per minute while games lose 6.1%. The difference is who plays:
+    playoff minutes go to the better scorers, so each of them has to give some up (usage)
+    and the baseline they are compared with is higher than the full-season team.
+- **Caveats:** possessions are estimated from box scores (the 0.44 weight, minutes rounded
+  to whole numbers), not counted. Only players who appeared in the postseason. Four
+  postseasons. The decomposition describes what happened; nothing here is tested against
+  prop prices yet.
+- **Decision:**
+  - Postseason indicator: **include**, interacted with market (assists and scoring
+    markets, not rebounds).
+  - Closing game total: **include** as a model input (B6); it carries the pace and
+    scoring-level change in one pregame number. Test next whether a prop line's drop from
+    the player's regular-season average is smaller than the game total's drop, and
+    whether that shortfall predicts the under.
+  - Separate pace and efficiency inputs from box scores: **exclude for now**; the game
+    total already summarises both.
 
 ## Part C: tracking and self-creation (NBA.com, not yet pulled)
 
