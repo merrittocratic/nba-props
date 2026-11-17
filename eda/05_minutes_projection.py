@@ -48,6 +48,7 @@ POSTSEASON = [*PREGAME, "post", "post_x_level", "post_x_started_last", "post_x_a
 LEVEL_TIERS = ([18, 24, 30, 34], ["under 18", "18 to <24", "24 to <30", "30 to <34", "34+"])
 # (inner edges, labels) in minutes; each band is [lo, hi).
 VS_LEVEL = ([-3, -1, 1, 3], ["3+ below", "1 to 3 below", "within 1", "1 to 3 above", "3+ above"])
+ADJUSTMENT = ([-2, -1, 1, 2], ["2+ fewer", "1 to 2 fewer", "within 1", "1 to 2 more", "2+ more"])
 VS_LINE = ([-4, -2, 2, 4], ["4+ below", "2 to 4 below", "within 2", "2 to 4 above", "4+ above"])
 MODEL_NOTE = (
     "Projection = linear model of minutes on the player's previous 10 games (level, last 3,"
@@ -333,6 +334,109 @@ def postseason(f: pd.DataFrame, b_regular: np.ndarray) -> None:
     save(style(fig, title), "b9_postseason_bias.html")
 
 
+def phase_panels(pg: pd.DataFrame, markets: list[str]) -> None:
+    """Over rate minus price by minutes level, regular season next to postseason."""
+    edges, labels = LEVEL_TIERS
+    d = pg.dropna(subset=["gap", "level"]).assign(
+        band=lambda x: pd.cut(x.level, [-np.inf, *edges, np.inf], labels=labels, right=False)
+    )
+    t = d.groupby(["market", "phase", "band"], observed=True).agg(
+        gap=("gap", "mean"), sd=("gap", "std"), n=("gap", "size"), margin=("margin", "mean")
+    )
+    t["se"] = t.sd / np.sqrt(t.n)
+    print("\nB9 postseason price test: gap by minutes level and phase")
+    print(t.drop(columns="sd").round(3).to_string())
+    fig = make_subplots(
+        rows=2, cols=3, subplot_titles=markets, shared_yaxes=True, vertical_spacing=0.16
+    )
+    for i, market in enumerate(markets):
+        for j, phase in enumerate(["regular season", "postseason"]):
+            s = t.loc[(market, phase)]
+            s = s[s.n >= MIN_BAND]
+            fig.add_trace(
+                go.Scatter(
+                    x=s.index.astype(str),
+                    y=s.gap,
+                    error_y=dict(type="data", array=1.96 * s.se, color=SERIES[j]),
+                    customdata=s[["n", "margin"]],
+                    mode="markers",
+                    name=phase,
+                    legendgroup=phase,
+                    showlegend=i == 0,
+                    marker=dict(color=SERIES[j], size=9),
+                    hovertemplate=(
+                        f"{market}, {phase}, %{{x}} minutes<br>over rate minus price:"
+                        " %{y:+.1%}<br>average margin: %{customdata[1]:+.2f}<br>player-games:"
+                        " %{customdata[0]:,}<extra></extra>"
+                    ),
+                ),
+                row=i // 3 + 1,
+                col=i % 3 + 1,
+            )
+    fig.add_hline(y=0, line_color=MUTED, line_dash="dot")
+    fig.update_xaxes(categoryorder="array", categoryarray=labels)
+    fig.update_xaxes(title_text="average minutes, previous 10 games", row=2)
+    fig.update_yaxes(tickformat="+.0%")
+    fig.update_layout(height=860, scattermode="group")
+    title = titled(
+        "Is the playoff under lean a bench-player effect? Price gap by minutes role",
+        "x = the player's average minutes over his previous 10 games played (each group"
+        " includes its lower edge). y = over rate minus mean no-vig over probability; below"
+        f" 0 = overs hit less often than priced. Bars = 95% CI; groups under {MIN_BAND}"
+        " player-games left out.",
+        "Unit = one player-game in one market at the close snapshot; over rate and price are"
+        " averaged over the books pricing it (pushes excluded). Postseason = play-in and"
+        " playoffs, 2023 (from May 3) to 2026. " + MAIN_NOTE,
+    )
+    save(style(fig, title), "b9_postseason_gap_by_level.html")
+
+
+def postseason_price(every: pd.DataFrame) -> None:
+    """Does the price already allow for playoff rotations? Catalog B9, price test."""
+    post = every[every.post == 1]
+    parts = []
+    for season in sorted(post.season.unique()):
+        train = every[every.season != season]  # each postseason projected by the others
+        t = post[post.season == season].copy()
+        t["proj_regular"] = predict(t, PREGAME, fit(train[train.post == 0], PREGAME))
+        t["proj"] = predict(t, POSTSEASON, fit(train, POSTSEASON))
+        parts.append(t)
+    proj = pd.concat(parts)
+    proj["adjustment"] = proj.proj - proj.proj_regular
+    print("\nB9 postseason adjustment (postseason-terms projection minus regular-season model)")
+    print(proj.adjustment.describe().round(2).to_string())
+
+    keys = ["espn_game_id", "player_key"]
+    both = pd.concat([b3.player_games(p).assign(phase=p) for p in ("regular season", "postseason")])
+    markets = list(b3.base.MARKETS.values())
+    phase_panels(both.merge(every[[*keys, "level"]], on=keys), markets)
+
+    pg = both[both.phase == "postseason"].merge(
+        proj[[*keys, "season", "minutes", "level", "proj", "proj_regular", "adjustment"]],
+        on=keys,
+    )
+    pg["played_vs_proj"] = pg.minutes - pg.proj
+    print(f"\npostseason player-game-markets with a projection: {len(pg):,}")
+    print(pg.groupby("season").size().to_string())
+    gap_panels(
+        pg,
+        "adjustment",
+        ADJUSTMENT,
+        markets,
+        "minutes added by postseason terms",
+        "b9_postseason_adjustment_gap.html",
+        "Does the price already allow for playoff rotations?",
+        "x = projection with postseason terms minus the regular-season model's projection,"
+        " in minutes (each group includes its lower edge): more = the playoffs should give"
+        " him more minutes than his regular-season pattern says. y = over rate minus mean"
+        f" no-vig over probability. Bars = 95% CI; groups under {MIN_BAND} left out.",
+        "Unit = one postseason player-game (play-in and playoffs, 2023 to 2026) in one"
+        " market at the close snapshot. Each postseason is projected by models fitted on"
+        " every other season, so no game is scored by a model that saw it.",
+        MAIN_NOTE,
+    )
+
+
 def main() -> None:
     every = features()
     f = every[every.post == 0]  # the regular-season projection and price tests
@@ -351,6 +455,7 @@ def main() -> None:
     test["proj"] = predict(test, PREGAME, b_pre)
     test["proj_hindsight"] = predict(test, HINDSIGHT, b_hind)
     postseason(every, b_pre)
+    postseason_price(every)
 
     pg = b3.player_games()
     pg = pg.merge(

@@ -82,11 +82,11 @@ def minutes_features() -> pd.DataFrame:
     ]
 
 
-def player_games() -> pd.DataFrame:
+def player_games(phase: str = "regular season") -> pd.DataFrame:
     """One row per player-game-market at the close: margin, over rate, price."""
     po = base.load()
     main = base.main_lines(po)
-    d = main[(main.kind == "close") & (main.phase == "regular season") & main.p_over.notna()]
+    d = main[(main.kind == "close") & (main.phase == phase) & main.p_over.notna()]
     d = d.assign(over=np.where(d.result == "push", np.nan, (d.result == "over").astype(float)))
     pg = (
         d.groupby([*base.PG, "espn_game_id"], observed=True)

@@ -483,12 +483,45 @@ number quoted in A1-A3 below changed.
     Regular-season accuracy is unchanged (4.95).
   - *Limits:* only players who appeared are scored, and players under 18 minutes sit out
     about half of postseason games, so the bench error is understated. One postseason of
-    testing. Not yet tested against the price.
+    testing.
+- **Postseason against the price (2026-11-17):**
+  - *Definitions:* unit = one postseason player-game (play-in and playoffs, 2023 from May
+    3 to 2026) in one market at the close. *Role* = 10-game average minutes, same groups
+    as B3. *Adjustment* = projection with postseason terms minus the regular-season
+    model's projection, in minutes; groups: 2+ fewer, 1 to 2 fewer, within 1, 1 to 2 more,
+    2+ more. Each postseason is projected by models fitted on every other season (so all
+    four postseasons can be scored; the fit uses later seasons, which a live model could
+    not). 25,374 player-game-markets.
+  - *Expected (written before building):* no usable edge. The postseason under lean
+    (about -3.4, A6) appears in every minutes tier, not only the bench; players adjusted
+    up do 1 to 2 points worse on overs, within noise. A gap of 4+ points confined to
+    bench players would mean books carry regular-season minutes into the playoffs.
+  - *Figures:* `b9_postseason_gap_by_level.html`, `b9_postseason_adjustment_gap.html`
+  - *Observed:* as expected; the bench is not where the lean is.
+    - By role, the extra postseason under lean sits with heavy-minute players in the
+      scoring markets. Points: -5.6 (30 to <34) and -4.8 (34+) against -1.7 and -2.3 in
+      the regular season; -1.1 to -3.2 below 30 minutes (se 1.5 to 2.0 each). Pts+Reb+Ast
+      at 34+ misses the line by 1.0 on average (regular season 0.45).
+    - Assists lean under in every tier, -4.1 to -6.0, against about 0 in the regular
+      season. Rebounds show no postseason effect (-2 in both phases).
+    - By adjustment, points go from -2.5 (within 1) to -5.2 (1 to 2 more) and -5.5 (2+
+      more, se 2.2); the combined markets are similar. The step is about 3 points, a
+      little over one standard error. Rebounds and assists are flat.
+    - Bench players who get a line are not over-priced: those adjusted down 2+ minutes
+      played 1.8 more than projected and points overs ran +1.9 (se 3.1, n 252). Books
+      post a line for a bench player when he is expected to play.
+  - *Reading (interpretation, not measured):* books do not carry regular-season minutes
+    into the playoffs. Starters get the extra minutes and still fall short, so the miss
+    is in output per minute, in line with A6. The postseason terms improve the minutes
+    forecast but are not an edge against the price by themselves.
 - **Caveats:** one test period (2025-26 plus ten days of 2026-27). The +2.5 was the one
   extreme group of five and is about break-even after vig, not a profit. Linear model:
   no interactions beyond the two listed. The six markets share player-games.
 - **Decision:**
   - Projected minutes: **include** as a model input in place of the three B3 features.
+  - Postseason terms in the projection: **include** (better minutes forecast); as a price
+    signal by themselves, **exclude**. The postseason lean for 30+ minute players and for
+    assists is a phase-by-role effect to carry into the model (A6), not a minutes effect.
   - Injury-report data for minutes: **exclude for now**; hindsight on absences improved
     the projection by 0.09 minutes and did not change the price test.
   - Projected-minus-level: **include**; a consistent 1-3 point under lean when minutes are
